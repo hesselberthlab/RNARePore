@@ -1,0 +1,155 @@
+---
+title: "Nanopolish - current intensity analysis"
+author: "LKW"
+date: "2/23/2022"
+output: html_document
+---
+```{r}
+# updated 5/22/2022
+knitr::opts_chunk$set(echo = F)
+require(tidyverse)
+require(purrr)
+library(cowplot)
+library(patchwork)
+
+read_tsv("YFL031W_mRNA.CRY1_Tm_NoExo.eventalign_output.txt", col_names = c("contig", "position",	"reference_kmer",	"read_id",	"strand",	"event_index",	"event_level_mean",	"event_stdv",	"event_length",	"model_kmer",	"model_mean",	"model_stdv",	"standardized_level")) %>%
+  add_column(genotype = "wild-type") -> wt
+read_tsv("YFL031W_mRNA.xrn1tpt1_Tm_NoExo.eventalign_output.txt", col_names = c("contig", "position",	"reference_kmer",	"read_id",	"strand",	"event_index",	"event_level_mean",	"event_stdv",	"event_length",	"model_kmer",	"model_mean",	"model_stdv",	"standardized_level")) %>%
+  add_column(genotype = "mutant") -> mt
+
+bind_rows(wt, mt) %>%
+  filter(reference_kmer != "NNNNN") %>%
+  select(-reference_kmer, -contig) -> nanopolish
+
+nanopolish %>%
+  mutate(position = position +3) %>% # NP begins count at 0 & counts in 5mer space; add 3 nt for center of 5mer
+  group_by(position, read_id, genotype) %>%
+  summarize(collapse_mean = mean(event_level_mean, na.rm = TRUE)) -> nanopolish
+
+# create new column to uniquely identify each read - important when NP outputs read INDICES vs names
+nanopolish$strain_readid <- paste(nanopolish$genotype, nanopolish$read_id, sep = "_") 
+  
+nanopolish %>%
+  filter(position > 714 & position < 741) %>%
+  ggplot(., aes(x = position, 
+                y = collapse_mean, 
+                group = desc(strain_readid),
+                color = genotype)) +
+  geom_line(aes(color = genotype), alpha=.05) +
+  scale_color_manual(values = c(`wild-type` = "#56B4E9", `mutant` = "#E69F00")) +
+  theme_minimal_hgrid() +
+  scale_x_continuous(breaks = seq(0, 1198, by = 5), expand = c(0, .5)) +
+  theme(legend.position = c(.01, 1),
+        legend.box.background = element_rect(color = "transparent", fill='white'),
+        legend.key = element_rect(fill = "transparent", color = "transparent")) +
+  geom_vline(xintercept=727, linetype="dashed", color = "black", size=.5, alpha = 1) +
+  geom_vline(xintercept=734, linetype="dashed", color = "gray", size=.5, alpha = 1) +
+  geom_vline(xintercept=720, linetype="dashed", color = "gray", size=.5, alpha = 1) +
+  labs(title = "",
+       x = "",
+       y = "Current intensity (pA)",
+       fill = "",
+       color = "") +
+  theme(plot.margin = margin(0,0,0,0,)) -> a
+
+ggsave("HAC1_current_ZOOM.png")
+```
+Now do a density plot.
+```{r}
+nanopolish %>%
+  filter(position > 719 & position < 735) %>%
+  ggplot(aes(x = collapse_mean, fill = genotype)) +
+  geom_density(alpha=0.5,adjust = 2, show.legend = F) +
+  theme_cowplot() +
+  scale_fill_manual(values = c(`wild-type` = "#56B4E9", `mutant`="#E69F00")) +
+  theme(aspect.ratio = 2/3) +
+  theme(legend.position = "bottom", legend.box = "horizontal")+
+  labs(title = "",
+       x = "Current intensity (pA)",
+       y = "Density",
+       fill = "",
+       color = "") +
+  theme(text = element_text(size = 22), axis.text = element_text(size = 20)) +
+  theme(plot.margin = margin(0,0,0,0,)) -> b
+ggsave("15merdensity.png")
+```
+Can we do some PCA plot of the 15mer window?
+```{r}
+nanopolish %>%
+  filter(position > 719 & position < 735) %>%
+  select(genotype, strain_readid, collapse_mean, position) %>%
+  pivot_wider(names_from = position, values_from = collapse_mean) %>%
+  na.omit()-> windows_naomit
+
+#rename the columns
+colnames(windows_naomit)<- c("Strain","read_index", "-7", "-6", "-5", "-4", "-3", "-2", "-1", "0", "1", "2","3","4","5","6", "7")
+
+# dimension conversion for further analysis - move the read IDs and genotypes into row names
+subs<- subset(windows_naomit)
+row.names(subs)<- paste(subs$read_index, subs$Strain)
+subs2<- subs[,-(1:3)]
+
+# run prcomp pca on the converted df
+df_pca <- prcomp(subs2)
+
+# create a new df that pulls back in the genotype and read ID names from the row IDs
+# this had an error in the df_out$group line from Nlab, which was why it failed
+df_out <- as.data.frame(df_pca$x)
+df_out$group <- sapply(strsplit(as.character(row.names(subs)), " "), "[[", 1 )
+df_out<- subset(df_out, PC1>-10)
+ggplot(df_out,aes(x=PC1,y=PC2,color=group))+
+  geom_point(show.legend = F)+
+  theme_cowplot() +
+  scale_color_manual(values = c(`wild-type` = "#56B4E9", mutant="#E69F00")) +
+  theme(aspect.ratio = 2/3) +
+  theme(legend.position = "none")+
+  labs(title = "",
+       x = "PC1",
+       y = "PC2",
+       fill = "",
+       color = "") +
+  theme(text = element_text(size = 22), axis.text = element_text(size = 20)) +
+  theme(plot.margin = margin(0,0,0,0,)) -> c
+ggsave("PCA.png")
+
+patch <- b + c
+a / patch & theme(axis.title = element_text(size = 16), axis.text = element_text(size = 12))
+ggsave("currentpatch.png")
+```
+
+What if rather than the individual read plots, what we really wanted was just the current intensity for each position on HAC1 compared between wild-type and mutant? To do that, we'd want to consolidate the existing dfs and summarize on mean(event_level_mean).
+```{r}
+# AGAIN NEED TO COMPENSATE FOR NANOPOLISH POSITION EFFECT BY ADDING +3
+wt %>%
+  mutate(position = position +3) %>% 
+  select(position, event_level_mean, genotype) %>%
+  group_by(position, genotype) %>%
+  summarize(avg_current = mean(event_level_mean)) -> wt_collapsed
+
+mt %>%
+  mutate(position = position +3) %>% 
+  select(position, event_level_mean, genotype) %>%
+  group_by(position, genotype) %>%
+  summarize(avg_current = mean(event_level_mean)) -> mt_collapsed
+
+full_join(wt_collapsed, mt_collapsed, by = "position") %>%
+  mutate(delta = avg_current.x - avg_current.y) -> nanopolish_collapsed
+
+nanopolish_collapsed %>%
+#  filter(position > 714 & position < 741) %>%
+  ggplot(., aes(x = position, y = delta)) +
+  geom_col(show.legend = F, fill = "#009E73") +
+  scale_x_continuous(breaks = seq(0, 1200, 100), expand = c(0, .5)) +
+  theme_minimal_hgrid() +
+  theme(aspect.ratio=1/3)+
+  labs(title = "",
+       x = "",
+       y = "∆ current intensity \n (WT-MT)")
+
+ggsave("delta_current.png")
+
+```
+
+
+
+

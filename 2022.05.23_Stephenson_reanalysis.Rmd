@@ -1,0 +1,159 @@
+---
+title: "Stephenson rRNA site dwell analysis"
+output: html_document
+date: '2022-05-23'
+---
+```{r, message=FALSE, warning=FALSE, echo = FALSE, results = FALSE}
+library(cowplot)
+library(tidyverse)
+library(purrr)
+library(ggplot2)
+library(colorblindr)
+library(patchwork)
+library(ggsignif)
+```
+As I did for the Leger oligo data, I want to look at per-read dwell from PMID: 35252946, comparing IVTed rRNA to native rRNA from budding yeast. Due to Nanopolish eventalign file size from these libraries, the input files have been preprocessed to remove extraneous fields and awk out only a 30 nt window of positions around the 2´-O-methylated sites of interest: 25S nt 2220, and 18S 1428. These were awked out with the awareness that Nanopolish eventalign works in kmer space and not sequence space, and thus the first thing we need to do here is add +3 to each position to get us into sequence space.
+```{r}
+read_delim("25S.2220.ivt.eventalign.subset.txt", delim = "\t",
+           col_names = c("contig", "position",	"reference_kmer",	"read_id",	"event_index",	"event_level_mean",	"event_length"))  %>%
+  mutate(position = position +3) %>%
+  group_by(contig, position, read_id) %>%
+  summarise(dwell = sum(event_length, na.rm = TRUE)*1000) %>%
+  mutate(library = "ctrl") -> ctrl_25S
+
+read_delim("25S.2220.native.eventalign.subset.txt", delim = "\t",
+           col_names = c("contig", "position",	"reference_kmer",	"read_id",	"event_index",	"event_level_mean",	"event_length"))  %>%
+  mutate(position = position +3) %>%
+  group_by(contig, position, read_id) %>%
+  summarise(dwell = sum(event_length, na.rm = TRUE)*1000) %>%
+  mutate(library = "mod") -> mod_25S
+
+bind_rows(ctrl_25S, mod_25S) %>%
+  ungroup() %>%
+  select(-contig) -> sc25S
+
+read_delim("18S.1428.ivt.eventalign.subset.txt", delim = "\t",
+           col_names = c("contig", "position",	"reference_kmer",	"read_id",	"event_index",	"event_level_mean",	"event_length"))  %>%
+  mutate(position = position +3) %>%
+  group_by(contig, position, read_id) %>%
+  summarise(dwell = sum(event_length, na.rm = TRUE)*1000) %>%
+  mutate(library = "ctrl") -> ctrl_18S
+
+read_delim("18S.1428.native.eventalign.subset.txt", delim = "\t",
+           col_names = c("contig", "position",	"reference_kmer",	"read_id",	"event_index",	"event_level_mean",	"event_length"))  %>%
+  mutate(position = position +3) %>%
+  group_by(contig, position, read_id) %>%
+  summarise(dwell = sum(event_length, na.rm = TRUE)*1000) %>%
+  mutate(library = "mod") -> mod_18S
+
+bind_rows(ctrl_18S, mod_18S) %>%
+  ungroup() %>%
+  select(-contig) -> sc18S
+```
+Plot dwell values over these positions.
+```{r}
+sc25S %>%
+  group_by(library) %>%
+  ggplot(., aes(x = as.factor(position), y = dwell, fill = fct_rev(library))) +
+  geom_boxplot(outlier.shape = NA) +
+  scale_y_log10() +
+  theme_minimal_hgrid() +
+  scale_x_discrete(breaks = seq(2100, 2300, by = 5), expand = c(0, 0)) +
+  theme(legend.position = "bottom",
+        legend.box.background = element_rect(color = "transparent", fill='white'),
+        legend.key = element_rect(fill = "transparent", color = "transparent")) +
+  scale_fill_manual(values = c(`mod`="#E69F00", `ctrl` = "#56B4E9")) +
+  geom_vline(xintercept=2200, linetype = "dashed", color = "gray", size=1) +
+  labs(x = "position")
+
+sc18S %>%
+  group_by(library) %>%
+  ggplot(., aes(x = as.factor(position), y = dwell, fill = fct_rev(library))) +
+  geom_boxplot(outlier.shape = NA) +
+  scale_y_log10() +
+  theme_minimal_hgrid() +
+  scale_x_discrete(breaks = seq(1400, 1470, by = 5), expand = c(0, 0)) +
+  theme(legend.position = "bottom",
+        legend.box.background = element_rect(color = "transparent", fill='white'),
+        legend.key = element_rect(fill = "transparent", color = "transparent")) +
+  scale_fill_manual(values = c(`mod`="#E69F00", `ctrl` = "#56B4E9")) +
+  geom_vline(xintercept=2200, linetype = "dashed", color = "gray", size=1) +
+  labs(x = "position")
+```
+Calculate relative positions for the 18S modification and make violin plots:
+```{r}
+sc18S %>%
+  mutate(relpos1 = position - 1428) -> rel18S
+
+rel18S %>%
+  filter(relpos1 > -1 & relpos1 < 1) %>%
+  ggplot(., aes(x = (library), y = dwell, fill = library)) +
+  geom_violin() +
+  geom_boxplot(width = 0.2, fill = "white", outlier.shape = NA) +
+  scale_y_log10() +
+  scale_fill_manual(values = c(`mod`="#E69F00", `ctrl` = "#56B4E9")) +
+  theme_cowplot() +
+  labs(y = "", x = "") +
+  theme(legend.position = "") +
+  geom_signif(comparisons = list(c("ctrl", "mod")),
+              test="ks.test", 
+              test.args=list(alternative = "two.sided", var.equal = FALSE, paired=FALSE),
+              map_signif_level = TRUE, col = 1, textsize = 8, vjust = .5) +
+  theme(aspect.ratio = 2.6/1) -> r18S0
+
+rel18S %>%
+  filter((relpos1 > 10 & relpos1 < 14)) %>%
+  ggplot(., aes(x = (library), y = dwell, fill = library)) +
+  geom_violin() +
+  geom_boxplot(width = 0.2, fill = "white", outlier.shape = NA) +
+  scale_y_log10() +
+  scale_fill_manual(values = c(`mod`="#E69F00", `ctrl` = "#56B4E9")) +
+  theme_cowplot() +
+  labs(y = "", x = "") +
+  theme(legend.position = "") +
+  geom_signif(comparisons = list(c("ctrl", "mod")),
+              test="ks.test", 
+              test.args=list(alternative = "two.sided", var.equal = FALSE, paired=FALSE),
+              map_signif_level = TRUE, col = 1, textsize = 8, vjust = .5) +
+  theme(aspect.ratio = 2.6/1) -> r18S10
+
+r18S0 + r18S10
+
+sc25S %>%
+  mutate(relpos1 = position - 2220) -> rel25S
+
+rel25S %>%
+  filter(relpos1 > -1 & relpos1 < 1) %>%
+  ggplot(., aes(x = (library), y = dwell, fill = library)) +
+  geom_violin() +
+  geom_boxplot(width = 0.2, fill = "white", outlier.shape = NA) +
+  scale_y_log10() +
+  scale_fill_manual(values = c(`mod`="#E69F00", `ctrl` = "#56B4E9")) +
+  theme_cowplot() +
+  labs(y = "", x = "") +
+  theme(legend.position = "") +
+  geom_signif(comparisons = list(c("ctrl", "mod")),
+              test="ks.test", 
+              test.args=list(alternative = "two.sided", var.equal = FALSE, paired=FALSE),
+              map_signif_level = TRUE, col = 1, textsize = 8, vjust = .5) +
+  theme(aspect.ratio = 2.6/1) -> r25S0
+
+rel25S %>%
+  filter((relpos1 > 10 & relpos1 < 14)) %>%
+  ggplot(., aes(x = (library), y = dwell, fill = library)) +
+  geom_violin() +
+  geom_boxplot(width = 0.2, fill = "white", outlier.shape = NA) +
+  scale_y_log10() +
+  scale_fill_manual(values = c(`mod`="#E69F00", `ctrl` = "#56B4E9")) +
+  theme_cowplot() +
+  labs(y = "", x = "") +
+  theme(legend.position = "") +
+  geom_signif(comparisons = list(c("ctrl", "mod")),
+              test="ks.test", 
+              test.args=list(alternative = "two.sided", var.equal = FALSE, paired=FALSE),
+              map_signif_level = TRUE, col = 1, textsize = 8, vjust = .5) +
+  theme(aspect.ratio = 2.6/1) -> r25S10
+
+r25S0 + r25S10
+```
+

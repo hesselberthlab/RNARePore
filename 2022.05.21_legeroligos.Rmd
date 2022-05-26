@@ -1,0 +1,618 @@
+---
+title: "2022.05.21_legeroligos"
+output: html_document
+date: '2022-05-21'
+---
+```{r, message=FALSE, warning=FALSE, echo = FALSE, results = FALSE}
+library(cowplot)
+library(tidyverse)
+library(purrr)
+library(ggplot2)
+library(colorblindr)
+library(patchwork)
+library(scales)
+library(ggsignif)
+```
+## Background
+PMID 34893601 has four synthetic RNA oligos of the same sequence, one unmodified and three modified. Leger & colleagues published some dwell analysis for these, but not at the ~10 nt 5´ offset where we and others have seen increases in dwell time consistent with slowdowns of RNA modifications interacting with the nanopore motor protein.
+```{r}
+read_delim("Oligo_control_623402.eventalign_output.txt", delim = "\t", col_names = T) %>%
+  filter(contig == "control") %>%
+  mutate(position = position +3) %>%
+  select(-strand, -model_kmer, -model_mean, -model_stdv, -standardized_level) %>%
+  group_by(contig, position, read_name) %>%
+  summarise(dwell = sum(event_length, na.rm = TRUE)*1000) %>%
+  mutate(library = "control") -> control
+
+read_delim("Oligo_1_623403.eventalign_output.txt", delim = "\t", col_names = T) %>%
+  filter(contig == "mod_set_1") %>%
+  mutate(position = position +3) %>%
+  select(-strand, -model_kmer, -model_mean, -model_stdv, -standardized_level) %>%
+  group_by(contig, position, read_name) %>%
+  summarise(dwell = sum(event_length, na.rm = TRUE)*1000) %>%
+  mutate(library = "oligo1") -> oligo1
+
+read_delim("Oligo_2_623404.eventalign_output.txt", delim = "\t", col_names = T) %>%
+  filter(contig == "mod_set_2") %>%
+  mutate(position = position +3) %>%
+  select(-strand, -model_kmer, -model_mean, -model_stdv, -standardized_level) %>%
+  group_by(contig, position, read_name) %>%
+  summarise(dwell = sum(event_length, na.rm = TRUE)*1000) %>%
+  mutate(library = "oligo2") -> oligo2
+
+read_delim("Oligo_3_623405.eventalign_output.txt", delim = "\t", col_names = T) %>%
+  filter(contig == "mod_set_3") %>%
+  mutate(position = position +3) %>%
+  select(-strand, -model_kmer, -model_mean, -model_stdv, -standardized_level) %>%
+  group_by(contig, position, read_name) %>%
+  summarise(dwell = sum(event_length, na.rm = TRUE)*1000) %>%
+  mutate(library = "oligo3") -> oligo3
+
+bind_rows(control, oligo1, oligo2, oligo3) %>%
+  ungroup() %>%
+  select(-contig) -> oligodwell # remove alignment because they're all the same sequence
+```
+I now have per-read dwell from every library. Plot these as distribution plots?
+```{r}
+oligodwell %>%
+  ggplot(aes(x = dwell, fill = library)) +
+  geom_density(alpha = .5) +
+  theme_cowplot() +
+  scale_x_log10() +
+  scale_fill_OkabeIto() +
+  theme(aspect.ratio=1/3)
+```
+Plot dwell values as Y with position as X:
+```{r}
+oligodwell %>%
+  group_by(library) %>%
+#  filter(library == "control" | library == "oligo3") %>%
+  filter(position > 55 & position <75) %>%
+  ggplot(., aes(x = as.factor(position), y = dwell, fill = library)) +
+  geom_boxplot(outlier.shape = NA) +
+  scale_y_log10() +
+ # facet_wrap(~library, ncol = 1) +
+  theme_minimal_hgrid() +
+  scale_x_discrete(breaks = seq(0, 100, by = 1), expand = c(0, 0)) +
+  theme(legend.position = "bottom",
+        legend.box.background = element_rect(color = "transparent", fill='white'),
+        legend.key = element_rect(fill = "transparent", color = "transparent")) +
+  scale_fill_OkabeIto(name = "") + 
+  labs(x = "position")
+
+```
+If we were to pull a 5nt window at the sites of interest, how would that look on HAC1?
+```{r}
+read_delim("YFL031W.CRY1_Tm_NoExo.eventalign_output.txt", delim = "\t", col_names = c("contig", "position",	"reference_kmer",	"read_id",	"strand",	"event_index",	"event_level_mean",	"event_stdv",	"event_length",	"model_kmer",	"model_mean",	"model_stdv",	"standardized_level")) %>%
+  mutate(position = position +3) %>%
+  select(-strand, -model_kmer, -model_mean, -model_stdv, -standardized_level) %>%
+  group_by(contig, position, read_id) %>%
+  summarise(dwell = sum(event_length, na.rm = TRUE)*1000) %>%
+  mutate(genotype = "CRY1") %>%
+  mutate(treatment = "Tm") %>%
+  mutate(enzyme = "NoExo") -> wt_hac1_dwell
+
+read_delim("YFL031W.xrn1tpt1_Tm_NoExo.eventalign_output.txt", delim = "\t", col_names = c("contig", "position",	"reference_kmer",	"read_id",	"strand",	"event_index",	"event_level_mean",	"event_stdv",	"event_length",	"model_kmer",	"model_mean",	"model_stdv",	"standardized_level")) %>%
+  mutate(position = position +3) %>%
+  select(-strand, -model_kmer, -model_mean, -model_stdv, -standardized_level) %>%
+  group_by(contig, position, read_id) %>%
+  summarise(dwell = sum(event_length, na.rm = TRUE)*1000) %>%
+  mutate(genotype = "Tpt1Xrn110x") %>%
+  mutate(treatment = "Tm") %>%
+  mutate(enzyme = "NoExo") -> mt_hac1_dwell
+
+bind_rows(wt_hac1_dwell, mt_hac1_dwell) -> hac1_dwell
+
+hac1_dwell %>%
+  filter(contig == "YFL031W_mRNA" & position > 710 & position < 750) %>% # cut this down to relevant sites
+  select(position, read_id, dwell, genotype) %>% # remove all extraneous columns
+  mutate(relpos1 = position - 727) %>% 
+  mutate(genotype = replace(genotype, genotype != "CRY1", "MT")) %>%
+  mutate(genotype = replace(genotype, genotype != "MT", "WT")) %>%
+  rename(library = genotype) -> hac
+
+hac %>%
+  filter(relpos1 > -1 & relpos1 < 1) %>%
+  ggplot(., aes(x = fct_rev(library), y = dwell, fill = library)) +
+  geom_violin() +
+  geom_boxplot(width = 0.2, fill = "white", outlier.shape = NA) +
+  scale_y_log10() +
+  scale_fill_manual(values = c(MT="#E69F00", WT = "#56B4E9")) +
+  theme_cowplot() +
+  labs(y = "Dwell (ms)", x = "") +
+  theme(legend.position = "") +
+  geom_signif(comparisons = list(c("WT", "MT")),
+              test="ks.test", 
+              test.args=list(alternative = "two.sided", var.equal = FALSE, paired=FALSE),
+              map_signif_level = TRUE, col = 1, textsize = 8, vjust = .5,
+              lwd = 0) +
+  theme(aspect.ratio = 2.6/1) -> hac0
+
+hac %>%
+  filter(relpos1 > 10 & relpos1 < 14) %>%
+  ggplot(., aes(x = fct_rev(library), y = dwell, fill = library)) +
+  geom_violin() +
+  geom_boxplot(width = 0.2, fill = "white", outlier.shape = NA)+
+  scale_y_log10() +
+  scale_fill_manual(values = c(MT="#E69F00", WT = "#56B4E9")) +
+  theme_cowplot() +
+  labs(y = "Dwell (ms)", x = "") +
+  theme(legend.position = "") +
+  geom_signif(comparisons = list(c("WT", "MT")),
+              test="ks.test", 
+              test.args=list(alternative = "two.sided", var.equal = FALSE, paired=FALSE),
+              map_signif_level = TRUE, col = 1, textsize = 8, vjust = .5) +
+  theme(aspect.ratio = 2.6/1) -> hac10
+
+hac0 + hac10
+```
+Now do the same for the mutations on the Leger oligos. Here's the combined m6A locations.
+```{r}
+# m6a is control vs. oligo1, resetting three positions based on all 3 mod locations
+oligodwell %>%
+  filter(library == "control" | library == "oligo1") %>%
+  mutate(library = replace(library, library == "control", "ctrl")) %>%
+  mutate(library = replace(library, library == "oligo1", "mod")) %>%
+  mutate(relpos1 = position - 19) %>%
+  mutate(relpos2 = position - 40) %>%
+  mutate(relpos3 = position - 61) %>%
+  mutate(library = replace(library, library == "oligo1", "modified")) -> m6A
+
+m6A %>%
+  rowwise() %>%
+  mutate(relpos = min(abs(relpos1), abs(relpos2), abs(relpos3)))
+
+
+m6A %>%
+  filter((relpos1 > -1 & relpos1 < 1) | (relpos2 > -1 & relpos2 < 1) | (relpos3 > -1 & relpos3 < 1)) %>%
+  ggplot(., aes(x = (library), y = dwell, fill = library)) +
+  geom_violin() +
+  geom_boxplot(width = 0.2, fill = "white", outlier.shape = NA) +
+  scale_y_log10() +
+  scale_fill_manual(values = c(mod="#E69F00", ctrl = "#56B4E9")) +
+  theme_cowplot() +
+  labs(y = "", x = "") +
+  theme(legend.position = "") +
+  geom_signif(comparisons = list(c("ctrl", "mod")),
+              test="ks.test", 
+              test.args=list(alternative = "two.sided", var.equal = FALSE, paired=FALSE),
+              map_signif_level = TRUE, col = 1, textsize = 8, vjust = .5,
+              lwd = 0) +
+  theme(aspect.ratio = 2.6/1) -> m6A0
+
+m6A %>%
+  filter((relpos1 > 10 & relpos1 < 14) | (relpos2 > 10 & relpos2 < 14) | (relpos3 > 19 & relpos3 < 14)) %>%
+  ggplot(., aes(x = (library), y = dwell, fill = library)) +
+  geom_violin() +
+  geom_boxplot(width = 0.2, fill = "white", outlier.shape = NA) +
+  scale_y_log10() +
+   scale_fill_manual(values = c(mod="#E69F00", ctrl = "#56B4E9")) +
+  theme_cowplot() +
+  labs(y = "", x = "") +
+  theme(legend.position = "") +
+  geom_signif(comparisons = list(c("ctrl", "mod")),
+              test="ks.test", 
+              test.args=list(alternative = "two.sided", var.equal = FALSE, paired=FALSE),
+              map_signif_level = TRUE, col = 1, textsize = 8, vjust = .5,
+              lwd = 0) +
+  theme(aspect.ratio = 2.6/1) -> m6A10
+
+m6A0 + m6A10
+```
+Inosine.
+```{r}
+# inosine is control vs. oligo2
+oligodwell %>%
+  filter(library == "control" | library == "oligo2") %>%
+  mutate(library = replace(library, library == "control", "ctrl")) %>%
+  mutate(library = replace(library, library == "oligo2", "mod")) %>%
+  mutate(relpos1 = position - 26) -> inosine
+
+
+inosine %>%
+  filter(relpos1 > -1 & relpos1 < 1) %>%
+  ggplot(., aes(x = (library), y = dwell, fill = library)) +
+  geom_violin() +
+  geom_boxplot(width = 0.2, fill = "white", outlier.shape = NA) +
+  scale_y_log10() +
+  scale_fill_manual(values = c(mod="#E69F00", ctrl = "#56B4E9")) +
+  theme_cowplot() +
+  labs(y = "", x = "") +
+  theme(legend.position = "") +
+  geom_signif(comparisons = list(c("ctrl", "mod")),
+              test="ks.test", 
+              test.args=list(alternative = "two.sided", var.equal = FALSE, paired=FALSE),
+              map_signif_level = TRUE, col = 1, textsize = 8, vjust = .5,
+              lwd = 0) +
+  theme(aspect.ratio = 2.6/1) -> inosine0
+
+inosine %>%
+  filter(relpos1 > 10 & relpos1 < 14) %>%
+  ggplot(., aes(x = (library), y = dwell, fill = library)) +
+  geom_violin() +
+  geom_boxplot(width = 0.2, fill = "white", outlier.shape = NA) +
+  scale_y_log10() +
+  scale_fill_manual(values = c(mod="#E69F00", ctrl = "#56B4E9")) +
+  theme_cowplot() +
+  labs(y = "", x = "") +
+  theme(legend.position = "") +
+  geom_signif(comparisons = list(c("ctrl", "mod")),
+              test="ks.test", 
+              test.args=list(alternative = "two.sided", var.equal = FALSE, paired=FALSE),
+              map_signif_level = TRUE, col = 1, textsize = 8, vjust = .5,
+              lwd = 0) +
+  theme(aspect.ratio = 2.6/1) -> inosine10
+
+
+inosine0 + inosine10
+```
+m5C
+```{r}
+# control vs. oligo2
+oligodwell %>%
+  filter(library == "control" | library == "oligo2") %>%
+  mutate(library = replace(library, library == "control", "ctrl")) %>%
+  mutate(library = replace(library, library == "oligo2", "mod")) %>%
+  mutate(relpos1 = position - 46) -> m5C
+
+
+m5C %>%
+  filter(relpos1 > -1 & relpos1 < 1) %>%
+  ggplot(., aes(x = (library), y = dwell, fill = library)) +
+  geom_violin() +
+  geom_boxplot(width = 0.2, fill = "white", outlier.shape = NA) +
+  scale_y_log10() +
+  scale_fill_manual(values = c(mod="#E69F00", ctrl = "#56B4E9")) +
+  theme_cowplot() +
+  labs(y = "", x = "") +
+  theme(legend.position = "") +
+  geom_signif(comparisons = list(c("ctrl", "mod")),
+              test="ks.test", 
+              test.args=list(alternative = "two.sided", var.equal = FALSE, paired=FALSE),
+              map_signif_level = TRUE, col = 1, textsize = 8, vjust = .5,
+              lwd = 0) +
+  theme(aspect.ratio = 2.6/1) -> m5C0
+
+m5C %>%
+  filter(relpos1 > 10 & relpos1 < 14) %>%
+  ggplot(., aes(x = (library), y = dwell, fill = library)) +
+  geom_violin() +
+  geom_boxplot(width = 0.2, fill = "white", outlier.shape = NA) +
+  scale_y_log10() +
+  scale_fill_manual(values = c(mod="#E69F00", ctrl = "#56B4E9")) +
+  theme_cowplot() +
+  labs(y = "", x = "") +
+  theme(legend.position = "") +
+  geom_signif(comparisons = list(c("ctrl", "mod")),
+              test="ks.test", 
+              test.args=list(alternative = "two.sided", var.equal = FALSE, paired=FALSE),
+              map_signif_level = TRUE, col = 1, textsize = 8, vjust = .5,
+              lwd = 0) +
+  theme(aspect.ratio = 2.6/1) -> m5C10
+
+
+m5C0 + m5C10
+```
+pseudoU
+```{r}
+# control vs. oligo2
+oligodwell %>%
+  filter(library == "control" | library == "oligo2") %>%
+  mutate(library = replace(library, library == "control", "ctrl")) %>%
+  mutate(library = replace(library, library == "oligo2", "mod")) %>%
+  mutate(relpos1 = position - 68) -> pU
+
+
+pU %>%
+  filter(relpos1 > -1 & relpos1 < 1) %>%
+  ggplot(., aes(x = (library), y = dwell, fill = library)) +
+  geom_violin() +
+  geom_boxplot(width = 0.2, fill = "white", outlier.shape = NA) +
+  scale_y_log10() +
+  scale_fill_manual(values = c(mod="#E69F00", ctrl = "#56B4E9")) +
+  theme_cowplot() +
+  labs(y = "", x = "") +
+  theme(legend.position = "") +
+  geom_signif(comparisons = list(c("ctrl", "mod")),
+              test="ks.test", 
+              test.args=list(alternative = "two.sided", var.equal = FALSE, paired=FALSE),
+              map_signif_level = TRUE, col = 1, textsize = 8, vjust = .5,
+              lwd = 0) +
+  theme(aspect.ratio = 2.6/1) -> pU0
+
+pU %>%
+  filter(relpos1 > 10 & relpos1 < 14) %>%
+  ggplot(., aes(x = (library), y = dwell, fill = library)) +
+  geom_violin() +
+  geom_boxplot(width = 0.2, fill = "white", outlier.shape = NA) +
+  scale_y_log10() +
+  scale_fill_manual(values = c(mod="#E69F00", ctrl = "#56B4E9")) +
+  theme_cowplot() +
+  labs(y = "", x = "") +
+  theme(legend.position = "") +
+  geom_signif(comparisons = list(c("ctrl", "mod")),
+              test="ks.test", 
+              test.args=list(alternative = "two.sided", var.equal = FALSE, paired=FALSE),
+              map_signif_level = TRUE, col = 1, textsize = 8, vjust = .5,
+              lwd = 0) +
+  theme(aspect.ratio = 2.6/1) -> pU10
+
+
+pU0 + pU10
+```
+m62A
+```{r}
+# control vs. oligo3
+oligodwell %>%
+  filter(library == "control" | library == "oligo3") %>%
+  mutate(library = replace(library, library == "control", "ctrl")) %>%
+  mutate(library = replace(library, library == "oligo3", "mod")) %>%
+  mutate(relpos1 = position - 34) -> m62A
+
+
+m62A %>%
+  filter(relpos1 > -1 & relpos1 < 1) %>%
+  ggplot(., aes(x = (library), y = dwell, fill = library)) +
+  geom_violin() +
+  geom_boxplot(width = 0.2, fill = "white", outlier.shape = NA) +
+  scale_y_log10() +
+  scale_fill_manual(values = c(mod="#E69F00", ctrl = "#56B4E9")) +
+  theme_cowplot() +
+  labs(y = "", x = "") +
+  theme(legend.position = "") +
+  geom_signif(comparisons = list(c("ctrl", "mod")),
+              test="ks.test", 
+              test.args=list(alternative = "two.sided", var.equal = FALSE, paired=FALSE),
+              map_signif_level = TRUE, col = 1, textsize = 8, vjust = .5,
+              lwd = 0) +
+  theme(aspect.ratio = 2.6/1) -> m62A0
+
+m62A %>%
+  filter(relpos1 > 10 & relpos1 < 14) %>%
+  ggplot(., aes(x = (library), y = dwell, fill = library)) +
+  geom_violin() +
+  geom_boxplot(width = 0.2, fill = "white", outlier.shape = NA) +
+  scale_y_log10() +
+  scale_fill_manual(values = c(mod="#E69F00", ctrl = "#56B4E9")) +
+  theme_cowplot() +
+  labs(y = "", x = "") +
+  theme(legend.position = "") +
+  geom_signif(comparisons = list(c("ctrl", "mod")),
+              test="ks.test", 
+              test.args=list(alternative = "two.sided", var.equal = FALSE, paired=FALSE),
+              map_signif_level = TRUE, col = 1, textsize = 8, vjust = .5) +
+  theme(aspect.ratio = 2.6/1) -> m62A10
+
+
+m62A0 + m62A10
+```
+
+m1G
+```{r}
+# control vs. oligo3
+oligodwell %>%
+  filter(library == "control" | library == "oligo3") %>%
+  mutate(library = replace(library, library == "control", "ctrl")) %>%
+  mutate(library = replace(library, library == "oligo3", "mod")) %>%
+  mutate(relpos1 = position - 55) -> m1G
+
+
+m1G %>%
+  filter(relpos1 > -1 & relpos1 < 1) %>%
+  ggplot(., aes(x = (library), y = dwell, fill = library)) +
+  geom_violin() +
+  geom_boxplot(width = 0.2, fill = "white", outlier.shape = NA) +
+  scale_y_log10() +
+  scale_fill_manual(values = c(mod="#E69F00", ctrl = "#56B4E9")) +
+  theme_cowplot() +
+  labs(y = "", x = "") +
+  theme(legend.position = "") +
+  geom_signif(comparisons = list(c("ctrl", "mod")),
+              test="ks.test", 
+              test.args=list(alternative = "two.sided", var.equal = FALSE, paired=FALSE),
+              map_signif_level = TRUE, col = 1, textsize = 8, vjust = .5) +
+  theme(aspect.ratio = 2.6/1) -> m1G0
+
+m1G %>%
+  filter(relpos1 > 10 & relpos1 < 14) %>%
+  ggplot(., aes(x = (library), y = dwell, fill = library)) +
+  geom_violin() +
+  geom_boxplot(width = 0.2, fill = "white", outlier.shape = NA) +
+  scale_y_log10() +
+  scale_fill_manual(values = c(mod="#E69F00", ctrl = "#56B4E9")) +
+  theme_cowplot() +
+  labs(y = "", x = "") +
+  theme(legend.position = "") +
+  geom_signif(comparisons = list(c("ctrl", "mod")),
+              test="ks.test", 
+              test.args=list(alternative = "two.sided", var.equal = FALSE, paired=FALSE),
+              map_signif_level = TRUE, col = 1, textsize = 8, vjust = .5,
+              lwd = 0) +
+  theme(aspect.ratio = 2.6/1) -> m1G10
+
+m1G0 + m1G10
+```
+2OMeA
+```{r}
+# control vs. oligo3
+oligodwell %>%
+  filter(library == "control" | library == "oligo3") %>%
+  mutate(library = replace(library, library == "control", "ctrl")) %>%
+  mutate(library = replace(library, library == "oligo3", "mod")) %>%
+  mutate(relpos1 = position - 76) -> OMeth
+
+
+OMeth %>%
+  filter(relpos1 > -1 & relpos1 < 1) %>%
+  ggplot(., aes(x = (library), y = dwell, fill = library)) +
+  geom_violin() +
+  geom_boxplot(width = 0.2, fill = "white", outlier.shape = NA) +
+  scale_y_log10() +
+  scale_fill_manual(values = c(mod="#E69F00", ctrl = "#56B4E9")) +
+  theme_cowplot() +
+  labs(y = "", x = "") +
+  theme(legend.position = "") +
+  geom_signif(comparisons = list(c("ctrl", "mod")),
+              test="ks.test", 
+              test.args=list(alternative = "two.sided", var.equal = FALSE, paired=FALSE),
+              map_signif_level = TRUE, col = 1, textsize = 8, vjust = .5,
+              lwd = 0) +
+  theme(aspect.ratio = 2.6/1,) -> OMeth0
+
+OMeth %>%
+  filter(relpos1 > 10 & relpos1 < 14) %>%
+  ggplot(., aes(x = (library), y = dwell, fill = library)) +
+  geom_violin() +
+  geom_boxplot(width = 0.2, fill = "white", outlier.shape = NA) +
+  scale_y_log10() +
+  scale_fill_manual(values = c(mod="#E69F00", ctrl = "#56B4E9")) +
+  theme_cowplot() +
+  labs(y = "", x = "") +
+  theme(legend.position = "") +
+  geom_signif(comparisons = list(c("ctrl", "mod")),
+              test="ks.test", 
+              test.args=list(alternative = "two.sided", var.equal = FALSE, paired=FALSE),
+              map_signif_level = TRUE, col = 1, textsize = 8, vjust = .5) +
+  theme(aspect.ratio = 2.6/1) -> OMeth10
+
+OMeth0 + OMeth10
+```
+And now can I do the same for the splint oligos?
+```{r}
+read_delim("ctrl.bwa.eventalign_output.txt", delim = "\t", col_names = T) %>%
+  select(-strand, -model_kmer, -model_mean, -model_stdv, -standardized_level) %>%
+  group_by(contig, position, read_index) %>%
+  summarise(dwell = sum(event_length, na.rm = TRUE)*1000) %>%
+  mutate(library = "control") -> ctrl_splint
+
+read_delim("2P.bwa.eventalign_output.txt", delim = "\t", col_names = T) %>%
+  select(-strand, -model_kmer, -model_mean, -model_stdv, -standardized_level) %>%
+  group_by(contig, position, read_index) %>%
+  summarise(dwell = sum(event_length, na.rm = TRUE)*1000) %>%
+  mutate(library = "modified") -> mod_splint
+
+bind_rows(ctrl_splint, mod_splint) %>%
+  mutate(position = position +3) %>%
+  mutate(library = replace(library, library == "control", "ctrl")) %>%
+  mutate(library = replace(library, library == "modified", "mod")) -> splint_dwell
+
+splint_dwell %>%
+  mutate(relpos1 = position - 41)  -> twophos # the 2P is at nt 41
+
+twophos %>%
+  filter(relpos1 > -1 & relpos1 < 1) %>%
+  ggplot(., aes(x = (library), y = dwell, fill = library)) +
+  geom_violin() +
+  geom_boxplot(width = 0.2, fill = "white", outlier.shape = NA) +
+  scale_y_log10() +
+  scale_fill_manual(values = c(`mod`="#E69F00", `ctrl` = "#56B4E9")) +
+  theme_cowplot() +
+  labs(y = "", x = "") +
+  theme(legend.position = "") +
+  geom_signif(comparisons = list(c("ctrl", "mod")),
+              test="ks.test", 
+              test.args=list(alternative = "two.sided", var.equal = FALSE, paired=FALSE),
+              map_signif_level = TRUE, col = 1, textsize = 8, vjust = .5) +
+  theme(aspect.ratio = 2.6/1) -> twophos0
+
+twophos %>%
+  filter((relpos1 > 10 & relpos1 < 14)) %>%
+  ggplot(., aes(x = (library), y = dwell, fill = library)) +
+  geom_violin() +
+  geom_boxplot(width = 0.2, fill = "white", outlier.shape = NA) +
+  scale_y_log10() +
+  scale_fill_manual(values = c(`mod`="#E69F00", `ctrl` = "#56B4E9")) +
+  theme_cowplot() +
+  labs(y = "", x = "") +
+  theme(legend.position = "") +
+  geom_signif(comparisons = list(c("ctrl", "mod")),
+              test="ks.test", 
+              test.args=list(alternative = "two.sided", var.equal = FALSE, paired=FALSE),
+              map_signif_level = TRUE, col = 1, textsize = 8, vjust = .5) +
+  theme(aspect.ratio = 2.6/1) -> twophos10
+
+twophos0 + twophos10
+
+```
+Now, I'd like to reorder the patchworks.
+```{r}
+(hac0 + twophos0 + m6A0 + inosine0 + m5C0 + pU0 + m62A0 + m1G0 + OMeth0 + r18S0 + r25S0) + plot_layout(nrow = 1) & theme(axis.title = element_text(size = 16), axis.text = element_text(size = 16), axis.text.x = element_text(angle = 90, vjust = .5)) & scale_y_log10(expand = expansion(mult = c(0, 0.1)))
+ggsave("oligos_pos0_dwell.png", width = 20, height = 4.5)
+(hac10 + twophos10 + m6A10 + inosine10 + m5C10 + pU10 + m62A10 + m1G10 + OMeth10 + r18S10 + r25S10) + plot_layout(nrow = 1) & theme(axis.title = element_text(size = 16), axis.text = element_text(size = 16),  axis.text.x = element_text(angle = 90, vjust = .5)) & scale_y_log10(expand = expansion(mult = c(0, 0.1)))
+ggsave("oligos_pos12_dwell.png", width = 20, height = 4.5)
+
+```
+Calculate mean differences. 
+```{r}
+# m6A is a little annoying b/c the mutation is in triplicate,
+# let's fix by making two dfs w/ only the positions of interest, assigning values of 0 or 10 within the 3mers & rebinding
+m6A %>%
+  filter(between(relpos1, -1, 1) | between(relpos1, 20, 22) | between(relpos1, 41, 43)) %>%
+  mutate(relpos = 0) %>%
+  select(-relpos1, -relpos2, -relpos3) %>% 
+  rename(relpos1 = relpos) -> m6A_readerhead
+
+m6A %>%
+  filter(between(relpos1, 11, 13) | between(relpos1, 31, 33) | between(relpos1, 52, 54)) %>%
+  mutate(relpos = 12) %>%
+  select(-relpos1, -relpos2, -relpos3) %>% 
+  rename(relpos1 = relpos)-> m6A_helicase
+
+bind_rows(m6A_readerhead, m6A_helicase) %>%
+  mutate(modification = "m6A")-> m6A_coerced
+
+# If they each get their own mod column we can bind them all, then filter to between(relpos1, -1, 1) | between(relpos1, 9, 11) 
+hac %>% ungroup() %>% select(-contig) %>% mutate(modification = "2′-P") -> hac
+twophos %>% mutate(modification = "2′-P") -> twophos
+inosine %>% mutate(modification = "I") -> inosine
+m5C %>% mutate(modification = "m5C")  -> m5C
+pU %>% mutate(modification = "Ψ") -> pU
+m62A %>% mutate(modification = "m62A") -> m62A
+m1G %>% mutate(modification = "m1G") -> m1G
+OMeth %>% mutate(modification = "2′-O-Me") -> OMeth
+sc25S %>% mutate(modification = "2′-O-Me") -> sc25S
+sc18S %>% mutate(modification = "2′-O-Me") -> sc18S
+
+bind_rows(hac, twophos, m6A_coerced, inosine, m5C, pU, m62A, m1G, OMeth) %>%
+  select(-read_id, -read_name, -position) %>%
+  mutate(library = replace(library, library == "MT", "mod")) %>%
+  mutate(library = replace(library, library == "WT", "ctrl")) -> all_sites
+
+all_sites$modification = factor(all_sites$modification, levels = c("hac1", "2′-P", "m6A", "I", "m5C", "Ψ", "m62A", "m1G", "2′-O-Me"), ordered = TRUE)
+
+all_sites %>%
+  filter(between(relpos1, -1, 1)) %>%
+  group_by(modification, library) %>%
+  summarize(meandwell = mean(dwell)) %>%
+  pivot_wider(names_from = library, values_from = meandwell) %>%
+  mutate(delta = mod - ctrl) %>%
+  ggplot(aes(x = delta, y = fct_rev(modification))) +
+  geom_bar(stat = "identity") +
+  theme_cowplot() +
+  labs(y = "", x = "", title = "") +
+  coord_cartesian(xlim = c(-15, 90))+
+  theme(aspect.ratio = 2/3) +
+#  theme(axis.text.x=element_text(angle = 90, vjust = .3)) +
+  theme(plot.title = element_text(hjust = 0.5)) -> amean
+
+all_sites %>%
+  filter(between(relpos1, 11, 13)) %>%
+  group_by(modification, library) %>%
+  summarize(meandwell = mean(dwell)) %>%
+  pivot_wider(names_from = library, values_from = meandwell) %>%
+  mutate(delta = mod - ctrl) %>%
+  ggplot(aes(x = delta, y = fct_rev(modification))) +
+  geom_bar(stat = "identity") +
+  theme_cowplot() +
+  labs(y = "", x = "", title = "") +
+  coord_cartesian(xlim = c(-15, 90)) +
+  theme(aspect.ratio = 2/3) +
+#  theme(axis.text.x=element_text(angle = 90, vjust = .3)) +
+  theme(plot.title = element_text(hjust = 0.5)) -> bmean
+
+amean & theme(axis.title = element_text(size = 20), axis.text = element_text(size = 20), aspect.ratio = 1/1.2)
+ggsave("leger_mean_dwell0.png")
+bmean & theme(axis.title = element_text(size = 20), axis.text = element_text(size = 20), aspect.ratio = 1/1.2)
+ggsave("leger_mean_dwell10.png")  
+```
+

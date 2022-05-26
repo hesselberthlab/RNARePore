@@ -1,0 +1,204 @@
+---
+title: "Unblocking analysis"
+output: html_document
+date: '2022-05-21'
+---
+
+```{r, message=FALSE, warning=FALSE, echo = FALSE, results = FALSE}
+library(cowplot)
+library(tidyverse)
+library(purrr)
+library(ggplot2)
+library(ggsignif)
+library(forcats)
+library(patchwork)
+```
+## Background
+Each Nanopore run produces a sequencing_summary.txt file where every row is a read, and every column contains a different metric, including the read length, the time it took the read to pass through the pore, the mean quality score per read, and the reason that the read ended. Here we interrogate these files. For non-multiplexed libraries where we retained this version of sequencing_summary.txt (which different than the sequencing summary txt produced by rebasecalling), I combined each of the files into a big summary table, split out the file names more tidily, and dropped a few fields I wasn't interested in.
+
+```{r, message=FALSE, warning=FALSE, echo = FALSE, results = FALSE}
+# where are the files
+data_path <- "~/Dropbox/Laura - UC Denver/2022.2021.nanopore.analysis/Nanopore_summary_data"
+
+# what are their names
+summary_files = list.files(data_path, pattern="*summary.txt", full.names = F)
+
+read_file <- function(x) {
+  df <- readr::read_delim(x, delim = "\t")
+  df$name <- basename(x)
+  
+  df
+  }
+  
+sum_table <- purrr::map_df(summary_files, read_file) 
+
+sum_table %>%
+  select(-pore_type, -strand_score_template, -experiment_id) %>%
+  select(-run_id, -channel, -filename_fastq, -filename_fast5, -sample_id) %>%
+  separate(name, into = c("genotype", "treatment", "enzyme"), extra="drop") -> sum_table
+```
+Let's look at how many reads were ejected due to suspected pore clogging on a per-library basis.
+```{r, message=FALSE, warning=FALSE}
+sum_table %>%
+  group_by(genotype, treatment, enzyme, end_reason) %>%
+  count()
+```
+Almost 7% of reads in the undigested mutant where we turned on the unfolded protein response got ejected for clogging the pore! Though of course, this is the one sample where I don't have a wild type comparison. But still, almost twice as many in the digested Tm-treated mutant vs. the control, and ~3x as many in the digested DMSO-treated mutant vs. the control. 
+
+I cut the output of Nanopolish eventalign to give a txt files with two fields: read ID, and the reference the read mapped to. Here I add some more metadata fields, then bind everything together into a tidy table.
+
+```{r}
+read_delim("CRY1_DMSO_Xrn1.reads.txt", delim = "\t", col_names = c("read_id", "ref")) %>%
+  mutate(genotype = "CRY1") %>%
+  mutate(treatment = "DMSO") %>%
+  mutate(enzyme = "Xrn1") -> CRY1_DMSO_Xrn1
+
+read_delim("CRY1_Tm_Xrn1.reads.txt", delim = "\t", col_names = c("read_id", "ref")) %>%
+  mutate(genotype = "CRY1") %>%
+  mutate(treatment = "Tm") %>%
+  mutate(enzyme = "Xrn1") -> CRY1_Tm_Xrn1
+
+read_delim("CRY1_Tm_NoExo.reads.txt", delim = "\t", col_names = c("read_id", "ref")) %>%
+  mutate(genotype = "CRY1") %>%
+  mutate(treatment = "Tm") %>%
+  mutate(enzyme = "NoExo") -> CRY1_Tm_NoExo
+
+read_delim("xrn1tpt1_DMSO_NoExo.reads.txt", delim = "\t", col_names = c("read_id", "ref")) %>%
+  mutate(genotype = "Tpt1Xrn110x") %>%
+  mutate(treatment = "DMSO") %>%
+  mutate(enzyme = "NoExo")  -> xrn1tpt1_DMSO_NoExo
+
+read_delim("xrn1tpt1_DMSO_Xrn1.reads.txt", delim = "\t", col_names = c("read_id", "ref")) %>%
+  mutate(genotype = "Tpt1Xrn110x") %>%
+  mutate(treatment = "DMSO") %>%
+  mutate(enzyme = "Xrn1") -> xrn1tpt1_DMSO_Xrn1
+
+read_delim("xrn1tpt1_Tm_Xrn1.reads.txt", delim = "\t", col_names = c("read_id", "ref")) %>%
+  mutate(genotype = "Tpt1Xrn110x") %>%
+  mutate(treatment = "Tm") %>%
+  mutate(enzyme = "Xrn1") -> xrn1tpt1_Tm_Xrn1
+
+read_delim("xrn1tpt1_Tm_NoExo.reads.txt", delim = "\t", col_names = c("read_id", "ref")) %>%
+  mutate(genotype = "Tpt1Xrn110x") %>%
+  mutate(treatment = "Tm") %>%
+  mutate(enzyme = "NoExo")-> xrn1tpt1_Tm_NoExo
+
+l = list(
+  CRY1_DMSO_Xrn1,
+  CRY1_Tm_Xrn1,
+  CRY1_Tm_NoExo,
+  xrn1tpt1_DMSO_NoExo,
+  xrn1tpt1_DMSO_Xrn1,
+  xrn1tpt1_Tm_Xrn1,
+  xrn1tpt1_Tm_NoExo
+)
+
+bind_rows(l) -> readrefs
+
+left_join(readrefs, sum_table, by = c("read_id", "genotype", "treatment", "enzyme")) %>%
+  select(read_id, genotype, treatment, enzyme, ref, duration, sequence_length_template, mean_qscore_template, end_reason) %>%
+  mutate(genotype = replace(genotype, genotype != "CRY1", "mutant")) %>%
+  mutate(genotype = replace(genotype, genotype != "mutant", "wild-type")) %>%
+  distinct() -> test
+```
+
+Use this joined table of end reasons x read ID x mRNA aligned to in order to calculate the proportion of unblocked reads across mRNAs with 10+ coverage.
+```{r}
+
+#I need the coverage per mRNA. This feels awkward, but creating two different summarized tables & joining them.
+test %>%
+  group_by(genotype, treatment, enzyme, ref) %>%
+  summarize(cov = n()) -> coverage
+
+test %>%
+  group_by(genotype, treatment, enzyme, ref, end_reason) %>%
+  summarize(unblockedreadssum = n()) %>%
+  group_by(genotype, treatment, enzyme, ref) %>%
+  mutate(per = prop.table(unblockedreadssum)*100) -> pct_per_mRNA
+
+pct_per_mRNA %>%
+  filter(end_reason == "unblock_mux_change") %>%
+  filter(ref != "*") -> unblockpct
+
+left_join(unblockpct, coverage) -> unblockpct
+
+unblockpct %>%
+  filter(cov > 29 & treatment == "Tm" & enzyme == "NoExo") %>%
+  ggplot(aes(x = per, fill = genotype)) +
+  geom_histogram(alpha = .6, position = "identity") +
+  scale_fill_manual(values = c(`wild-type` = "#56B4E9", mutant="#E69F00"), name = "") +
+  theme_cowplot() +
+  scale_x_log10() +
+  labs(x = "",
+       title = "") +
+  theme(legend.position = c(0.1, 0.8)) +
+  geom_vline(xintercept=2.079395, linetype = "dashed", color = "#56B4E9", size=1) +
+  geom_vline(xintercept=15.950920, linetype = "dashed", color = "#E69F00", size=1) -> b
+  
+```
+Cut some coverage filters in each library, enforce the filter be true in *both* libraries. Plot the distributions for this shared coverage filter set.
+```{r}
+unblockpct %>%
+  filter(genotype == "mutant" & enzyme == "NoExo" & treatment == "Tm" & cov > 29) %>%
+  ungroup() %>%
+  select(ref) -> mt30plus
+
+unblockpct %>%
+  filter(genotype == "wild-type" & enzyme == "NoExo" & treatment == "Tm" & cov > 29) %>%
+  ungroup() %>%
+  select(ref)  -> wt30plus
+
+inner_join(mt30plus, wt30plus) -> shared30plus
+left_join(shared30plus, unblockpct) -> shared30_plus
+
+shared30_plus %>%
+  ggplot(aes(x = per, fill = genotype)) +
+  geom_histogram(alpha = .6, position = "identity") +
+  scale_fill_manual(values = c(`wild-type` = "#56B4E9", mutant="#E69F00")) +
+  theme_cowplot() +
+  scale_x_log10() +
+  labs(x = "% unblocked reads per mRNA",
+       title = "") +
+  theme(legend.position = c(0.1, 0.8)) +
+  geom_vline(xintercept=2.079395, linetype = "dashed", color = "#56B4E9", size=1) +
+  geom_vline(xintercept=15.950920, linetype = "dashed", color = "#E69F00", size=1)
+```
+```{r}
+shared30_plus %>%
+  filter(end_reason == "unblock_mux_change" & enzyme == "NoExo" & treatment == "Tm") %>%
+  select(-cov, -treatment, -enzyme, -end_reason, -unblockedreadssum) %>%
+  pivot_wider(names_from = genotype, values_from = per) %>%
+  mutate(delta = mutant - `wild-type`) -> unblock_diff
+
+unblock_diff %>%
+  ggplot(aes(x = delta)) +
+  geom_histogram(alpha = .6, fill = "#009E73") +
+  geom_vline(xintercept=13.87153, linetype = "dashed", color = "#009E73", size=1) +
+  labs(x = "", title = "") +
+  theme_cowplot() -> c
+```
+Box plot for distribution of all read end status across these 2 libraries, independent of their length?
+```{r}
+pct_per_mRNA %>%
+  filter(treatment == "Tm" & enzyme == "NoExo") %>%
+  filter(end_reason != "signal_positive") %>%
+  mutate(end_reason = replace(end_reason, end_reason == "mux_change", "mux change")) %>%
+  mutate(end_reason = replace(end_reason, end_reason == "signal_negative", "signal negative")) %>%
+  mutate(end_reason = replace(end_reason, end_reason == "unblock_mux_change", "unblock")) %>%
+  ggplot(., aes(x = end_reason, y = per, fill = fct_rev(genotype)), stat = "identity") +
+  geom_boxplot(outlier.shape = NA) +
+  theme_cowplot() +
+#  theme(axis.text.x = (element_text(angle = 45, hjust = 1))) +
+  labs(y = "% reads per mRNA  w/ end status", x = "") +
+  scale_fill_manual(values = c(`wild-type` = "#56B4E9", mutant="#E69F00"), name = "") +
+  geom_signif(
+    y_position = c(13, 22, 38), xmin = c(0.8, 1.8, 2.8), xmax = c(1.2, 2.2, 3.2),
+    annotation = c("NS", "****", "****"), tip_length = .01, vjust = -.2
+    ) +
+  coord_cartesian(ylim = c(0, 40)) +
+  theme(legend.position = c(0.1, 0.9)) -> a
+
+a + b + c & theme(axis.title = element_text(size = 16), axis.text = element_text(size = 16),  axis.text.x = element_text(angle = 90))
+ggsave("endstatus_patch.png", width = 14, height = 6)
+```
+

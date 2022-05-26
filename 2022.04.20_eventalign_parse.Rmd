@@ -1,0 +1,239 @@
+---
+title: "Nanopolish eventalign parsing"
+output: html_document
+date: '2022-04-20'
+---
+
+```{r}
+knitr::opts_chunk$set(echo = F)
+require(tidyverse)
+require(purrr)
+library(cowplot)
+library(colorblindr)
+
+read_delim("ctrl.eventalign_output.txt", delim = "\t", col_names = T) %>%
+  mutate(id = "unmodified") %>%
+  select(-strand, -contig, -model_kmer, -model_mean, -model_stdv, -standardized_level) -> ctrlsplint
+read_delim("2P.eventalign_output.txt", delim = "\t", col_names = T) %>%
+  mutate(id = "modified")  %>%
+  select(-strand, -contig, -model_kmer, -model_mean, -model_stdv, -standardized_level) -> modsplint
+
+# add 3 nt to account for nanopolish working in kmer space & beginning count w/ 0
+bind_rows(ctrlsplint, modsplint) %>%
+  mutate(position = position +3) -> splint_np
+```
+
+Now take that tibble and split it out into a few different ones, because we want to do several distinct things for each read:
+* Sum the event_length by position (collapsing positions with multiple events) and multiply by 1000 to get Dwell in milliseconds
+* Take the mean of event_level by position (collapsing positions with multiple events)
+
+```{r}
+splint_np %>%
+  group_by(position, reference_kmer, read_index, id) %>%
+  summarize(mean_current = mean(event_level_mean)) -> splint_current
+```
+I should be able to make the exact same plot as before.
+```{r}
+splint_current %>%
+  filter(position > 29 & position < 55) %>%
+  ggplot(., aes(x = position, 
+                y = mean_current, 
+                group = desc(read_index),
+                color = id)) +
+  geom_line(aes(color = id), alpha=.05) +
+  scale_color_manual(values = c(unmodified = "#56B4E9", modified = "#E69F00")) +
+  theme_minimal_hgrid() +
+  scale_x_continuous(breaks = seq(0, 85, by = 5), expand = c(0, .5)) +
+  theme(legend.position = c(.01, 1),
+        legend.box.background = element_rect(color = "transparent", fill='white'),
+        legend.key = element_rect(fill = "transparent", color = "transparent")) +
+  geom_vline(xintercept=41, linetype="dashed", color = "black", size=.5) +
+  geom_vline(xintercept=34, linetype="dashed", color = "gray", size=.5) +
+  geom_vline(xintercept=48, linetype="dashed", color = "gray", size=.5) +
+  theme(aspect.ratio=1/4)+
+  labs(title = "",
+       x = "",
+       y = "Current intensity (pA)",
+       fill = "",
+       color = "")
+ggsave("perread_CI_on_splint.png")
+```
+Ok, yep, that's the same. So now we can do a similar thing for Dwell.
+```{r}
+splint_np %>%
+  group_by(position, reference_kmer, read_index, id) %>%
+  summarize(Dwell = sum(event_length)*1000) -> splint_dwell
+
+splint_dwell %>%
+  ggplot(., aes(x = position, 
+                y = Dwell, 
+                group = desc(read_index),
+                color = id)) +
+  geom_line(aes(color = id), alpha=.2) +
+  scale_color_manual(values = c(unmodified = "#56B4E9", modified = "#E69F00")) +
+  theme_minimal_hgrid() +
+  scale_x_continuous(breaks = seq(0, 85, by = 5), expand = c(0, .5)) +
+  theme(legend.position = c(.01, 1),
+        legend.box.background = element_rect(color = "transparent", fill='white'),
+        legend.key = element_rect(fill = "transparent", color = "transparent")) +
+  theme(aspect.ratio=1/4)+
+  geom_vline(xintercept=41, linetype="dashed", color = "black", size=.5) +
+  geom_vline(xintercept=34, linetype="dashed", color = "gray", size=.5) +
+  geom_vline(xintercept=48, linetype="dashed", color = "gray", size=.5) +
+  labs(title = "",
+       x = "",
+       y = "Dwell (ms)",
+       fill = "",
+       color = "")
+```
+It would also be nice to see mean dwell, so let's do that.
+```{r}
+splint_dwell %>%
+  group_by(position, reference_kmer, id) %>%
+  summarize(Dwell = mean(Dwell)) -> mean_dwell
+
+
+mean_dwell %>%
+ # filter(position > 29 & position < 56) %>%
+  ggplot(., aes(x = position, 
+                y = Dwell, 
+                color = id)) +
+  geom_line(aes(color = id)) +
+  scale_color_manual(values = c(unmodified = "#56B4E9", modified = "#E69F00")) +
+  theme_minimal_hgrid() +
+  scale_x_continuous(breaks = seq(0, 85, by = 5), expand = c(0, .5)) +
+  theme(legend.position = c(.01, 1),
+        legend.box.background = element_rect(color = "transparent", fill='white'),
+        legend.key = element_rect(fill = "transparent", color = "transparent")) +
+  theme(aspect.ratio=1/4)+
+  geom_vline(xintercept=41, linetype="dashed", color = "black", size=.5) +
+  geom_vline(xintercept=52, linetype="dashed", color = "#D55E00", size=.5) +
+  labs(title = "",
+       x = "",
+       y = "Mean Dwell (ms)",
+       fill = "",
+       color = "")
+```
+Jay made a good suggestion, reworking the per-read Dwell into a box plot like I did for Q scores.
+```{r}
+splint_dwell %>%
+  filter(position > 34 & position < 61) %>%
+  group_by(id) %>%
+  ggplot(., aes(x = as.factor(position), y = Dwell, fill = fct_rev(id))) +
+  geom_boxplot(outlier.shape = NA) +
+  scale_x_discrete(breaks = seq(0, 85, by = 5), expand = c(0, 0)) +
+  scale_y_log10() +
+  scale_fill_manual(values = c("#56B4E9", "#E69F00"), limits = c("unmodified", "modified")) +
+  theme_minimal_hgrid() +
+  theme(legend.position = c(.05, .9),
+        legend.box.background = element_rect(color = "transparent", fill='white'),
+        legend.key = element_rect(fill = "transparent", color = "transparent")) +
+  theme(aspect.ratio=1/3) +
+  geom_vline(xintercept=7, linetype="dashed", color = "black", size=1, alpha = .5) + # modified position
+  labs(title = "",
+       x = "",
+       y = "Dwell (ms)",
+       fill = "")
+ggsave("splint_perread_dwell.png")
+```
+Now to do the same thing for HAC1.
+```{r}
+read_delim("HAC1.CRY1_Tm_NoExo.eventalign_output.txt", delim = "\t", col_names = T) %>%
+  mutate(id = "wild-type") %>%
+  select(-strand, -contig, -model_kmer, -model_mean, -model_stdv, -standardized_level) -> hac1_wildtype
+read_delim("HAC1.xrn1tpt1_Tm_NoExo.eventalign_output.txt", delim = "\t", col_names = T) %>%
+  mutate(id = "mutant")  %>%
+  select(-strand, -contig, -model_kmer, -model_mean, -model_stdv, -standardized_level) -> hac1_mutant
+
+bind_rows(hac1_wildtype, hac1_mutant) %>%
+  mutate(position = position + 3) -> hac1_np
+
+hac1_np %>%
+  group_by(position, reference_kmer, read_index, id) %>%
+  summarize(Dwell = sum(event_length)*1000) -> hac1_dwell
+
+hac1_dwell %>%
+  filter(position > 719 & position < 746) %>%
+  group_by(id) %>%
+  ggplot(., aes(x = as.factor(position), y = Dwell, fill = id)) +
+  geom_boxplot(outlier.shape = NA) +
+  scale_x_discrete(breaks = seq(690, 750, 5), expand = c(0,0)) +
+  scale_y_log10() +
+  scale_fill_manual(values = c("#56B4E9", "#E69F00"), limits = c("wild-type", "mutant")) +
+  theme_minimal_hgrid() +
+  theme(legend.position = c(.05, .9),
+        legend.box.background = element_rect(color = "transparent", fill='white'),
+        legend.key = element_rect(fill = "transparent", color = "transparent")) +
+  theme(aspect.ratio=1/3) +
+  geom_vline(xintercept=8, linetype="dashed", color = "black", size=1, alpha = .5) +
+  labs(title = "",
+       x = "",
+       y = "Dwell (ms)",
+       fill = "")
+
+ggsave("hac1_perread_dwell.png")
+```
+Here is mean dwell on HAC1, also.
+```{r}
+hac1_np %>%
+  group_by(position, reference_kmer, read_index, id) %>%
+  summarize(Dwell = sum(event_length)*1000) %>%
+  group_by(position, reference_kmer, id) %>%
+  summarize(Dwell = mean(Dwell)) -> mean_dwell
+
+mean_dwell %>%
+  ggplot(., aes(x = position, 
+                y = Dwell, 
+                color = id)) +
+  geom_line(aes(color = id)) +
+  scale_color_manual(values = c('wild-type' = "#56B4E9", 'mutant' = "#E69F00")) +
+  theme_minimal_hgrid() +
+  scale_x_continuous(breaks = seq(0, 1200, by = 100), expand = c(0, .5)) +
+  theme(legend.position = c(.01, 1),
+        legend.box.background = element_rect(color = "transparent", fill='white'),
+        legend.key = element_rect(fill = "transparent", color = "transparent")) +
+  theme(aspect.ratio=1/4)+
+  labs(title = "",
+       x = "",
+       y = "Mean Dwell (ms)",
+       fill = "",
+       color = "")
+ggsave("HAC1_meandwell.png")
+```
+Then replicate the ∆ current intensity plot with a ∆ dwell plot 
+```{r}
+# AGAIN NEED TO COMPENSATE FOR NANOPOLISH POSITION EFFECT BY ADDING +3
+hac1_wildtype %>%
+  mutate(position = position +3) %>% 
+  select(position, read_index, event_length, id) %>%
+  group_by(position, read_index, id) %>%
+  summarize(Dwell = sum(event_length)*1000) %>%
+  ungroup() %>%
+  group_by(position, id) %>%
+  summarize(Dwell = mean(Dwell)) -> wt_collapsed
+
+hac1_mutant %>%
+  mutate(position = position +3) %>% 
+  select(position, read_index, event_length, id) %>%
+  group_by(position, read_index, id) %>%
+  summarize(Dwell = sum(event_length)*1000) %>%
+  ungroup() %>%
+  group_by(position, id) %>%
+  summarize(Dwell = mean(Dwell)) -> mt_collapsed
+
+full_join(wt_collapsed, mt_collapsed, by = "position") %>%
+  mutate(delta = Dwell.x - Dwell.y) -> nanopolish_collapsed
+
+nanopolish_collapsed %>%
+  filter(position > 719 & position < 746) %>%
+  ggplot(., aes(x = position, y = delta)) +
+  geom_col(show.legend = F, fill = "#009E73") +
+  scale_x_continuous(breaks = seq(0, 1200, 5), expand = c(0, .5)) +
+  theme_minimal_hgrid() +
+  theme(aspect.ratio=1/3)+
+  labs(title = "",
+       x = "",
+       y = "∆ dwell (ms) \n (WT-MT)")
+ggsave("hac1_delta_dwell.png")
+```
+
