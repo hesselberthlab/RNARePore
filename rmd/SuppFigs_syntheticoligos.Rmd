@@ -1,0 +1,209 @@
+---
+title: "2P mixed oligos dwell"
+output: html_document
+date: "2022-08-19"
+---
+```{r}
+knitr::opts_chunk$set(echo = F)
+require(tidyverse)
+require(purrr)
+library(cowplot)
+library(colorblindr)
+library(ggplot2)
+library(ggsignif)
+library(forcats)
+library(patchwork)
+
+read_delim("ctrl.bwa.eventalign_output.txt", delim = "\t", col_names = T) %>%
+  mutate(id = "unmodified") %>%
+  select(-strand, -contig, -model_kmer, -model_mean, -model_stdv, -standardized_level) -> ctrlsplint
+read_delim("2P.bwa.eventalign_output.txt", delim = "\t", col_names = T) %>%
+  mutate(id = "modified")  %>%
+  select(-strand, -contig, -model_kmer, -model_mean, -model_stdv, -standardized_level) -> modsplint
+read_delim("5050.eventalign_output.txt", delim = "\t", col_names = T) %>%
+  mutate(id = "mixed")  %>%
+  select(-strand, -contig, -model_kmer, -model_mean, -model_stdv, -standardized_level) -> mixedsplint
+
+# add 3 nt to account for nanopolish working in kmer space & beginning count w/ 0
+bind_rows(ctrlsplint, modsplint) -> two
+bind_rows(two, mixedsplint) %>%
+  mutate(position = position +3) -> splint_np
+```
+Now take that tibble and split it out into a few different ones, because we want to do several distinct things for each read:
+* Sum the event_length by position (collapsing positions with multiple events) and multiply by 1000 to get Dwell in milliseconds
+* Take the mean of event_level by position (collapsing positions with multiple events)
+
+```{r}
+splint_np %>%
+  group_by(position, reference_kmer, read_index, id) %>%
+  summarize(mean_current = mean(event_level_mean)) -> splint_current
+```
+I should be able to make the exact same plot as before.
+```{r}
+splint_current %>%
+  filter(position > 29 & position < 55) %>%
+  ggplot(., aes(x = position, 
+                y = mean_current, 
+                group = desc(read_index),
+                color = id)) +
+  geom_line(aes(color = id), alpha=.05) +
+  scale_color_manual(values = c(unmodified = "#56B4E9", modified = "#E69F00", mixed = "#009E73")) +
+  theme_minimal_hgrid() +
+  scale_x_continuous(breaks = seq(0, 85, by = 5), expand = c(0, .5)) +
+  theme(legend.position = c(.01, 1),
+        legend.box.background = element_rect(color = "transparent", fill='white'),
+        legend.key = element_rect(fill = "transparent", color = "transparent")) +
+  geom_vline(xintercept=41, linetype="dashed", color = "black", size=.5) +
+  geom_vline(xintercept=34, linetype="dashed", color = "gray", size=.5) +
+  geom_vline(xintercept=48, linetype="dashed", color = "gray", size=.5) +
+  theme(aspect.ratio=1/4)+
+  labs(title = "",
+       x = "",
+       y = "Current intensity (pA)",
+       fill = "",
+       color = "")
+```
+Ok, yep, that's the same. So now we can do a similar thing for Dwell.
+```{r}
+splint_np %>%
+  group_by(position, reference_kmer, read_index, id) %>%
+  summarize(Dwell = sum(event_length)*1000) -> splint_dwell
+
+splint_dwell %>%
+  ggplot(., aes(x = position, 
+                y = Dwell, 
+                group = desc(read_index),
+                color = id)) +
+  geom_line(aes(color = id), alpha=.2) +
+  scale_color_manual(values = c(unmodified = "#56B4E9", modified = "#E69F00", mixed = "#009E73")) +
+  theme_minimal_hgrid() +
+  scale_x_continuous(breaks = seq(0, 85, by = 5), expand = c(0, .5)) +
+  theme(legend.position = c(.01, 1),
+        legend.box.background = element_rect(color = "transparent", fill='white'),
+        legend.key = element_rect(fill = "transparent", color = "transparent")) +
+  theme(aspect.ratio=1/4)+
+  geom_vline(xintercept=41, linetype="dashed", color = "black", size=.5) +
+  geom_vline(xintercept=34, linetype="dashed", color = "gray", size=.5) +
+  geom_vline(xintercept=48, linetype="dashed", color = "gray", size=.5) +
+  labs(title = "",
+       x = "",
+       y = "Dwell (ms)",
+       fill = "",
+       color = "")
+```
+It would also be nice to see mean dwell, so let's do that.
+```{r}
+splint_dwell %>%
+  group_by(position, reference_kmer, id) %>%
+  summarize(Dwell = mean(Dwell)) -> mean_dwell
+
+splint_dwell %>%
+  group_by(position, reference_kmer, id) %>%
+  summarize(Dwell = median(Dwell)) -> median_dwell
+
+median_dwell %>%
+ # filter(position > 29 & position < 56) %>%
+  ggplot(., aes(x = position, 
+                y = Dwell, 
+                color = id)) +
+  geom_line(aes(color = id)) +
+  scale_color_manual(values = c(unmodified = "#56B4E9", modified = "#E69F00", mixed = "#009E73")) +
+  theme_minimal_hgrid() +
+  scale_x_continuous(breaks = seq(0, 85, by = 5), expand = c(0, .5)) +
+  theme(legend.position = c(.01, 1),
+        legend.box.background = element_rect(color = "transparent", fill='white'),
+        legend.key = element_rect(fill = "transparent", color = "transparent")) +
+  theme(aspect.ratio=1/4)+
+  geom_vline(xintercept=41, linetype="dashed", color = "black", size=.5) +
+  geom_vline(xintercept=52, linetype="dashed", color = "#D55E00", size=.5) +
+  labs(title = "",
+       x = "",
+       y = "Median Dwell (ms)",
+       fill = "",
+       color = "")
+```
+Jay made a good suggestion, reworking the per-read Dwell into a box plot like I did for Q scores.
+```{r}
+splint_dwell %>%
+  filter(position > 34 & position < 61) %>%
+  group_by(id) %>%
+  ggplot(., aes(x = as.factor(position), y = Dwell, fill = fct_rev(id))) +
+  geom_boxplot(outlier.shape = NA) +
+  scale_x_discrete(breaks = seq(0, 85, by = 5), expand = c(0, 0)) +
+  scale_y_log10() +
+  scale_fill_manual(values = c("#56B4E9", "#E69F00", "#009E73"), limits = c("unmodified", "modified", "mixed")) +
+  theme_minimal_hgrid() +
+  theme(legend.position = c(.05, .9),
+        legend.box.background = element_rect(color = "transparent", fill='white'),
+        legend.key = element_rect(fill = "transparent", color = "transparent")) +
+  theme(aspect.ratio=1/3) +
+  geom_vline(xintercept=7, linetype="dashed", color = "black", size=1, alpha = .5) + # modified position
+  labs(title = "",
+       x = "",
+       y = "Dwell (ms)",
+       fill = "")
+ggsave("splint_perread_dwell.png")
+```
+
+Then treat this like the synthetic oligo data. 
+```{r}
+splint_np  %>%
+  mutate(position = position +3) %>%
+  group_by(id, position, read_index) %>%
+  summarise(dwell = sum(event_length, na.rm = TRUE)*1000) -> test
+
+test %>%
+  group_by(id) %>%  filter((position > 53 & position < 57)) %>%
+  ggplot(., aes(x = (id), y = dwell, fill = id)) +
+  geom_violin() +
+  geom_boxplot(width = 0.2, fill = "white", outlier.shape = NA) +
+  scale_y_log10() +
+  scale_fill_manual(values = c("#56B4E9", "#E69F00", "#009E73"), limits = c("unmodified", "modified", "mixed")) +
+  theme_cowplot() +
+  labs(y = "", x = "") +
+  theme(legend.position = "") +
+  geom_signif(comparisons = list(c("modified", "mixed"), c("modified", "unmodified"), c("unmodified", "mixed")),
+              test="ks.test", 
+              test.args=list(alternative = "two.sided", var.equal = FALSE, paired=FALSE),
+              map_signif_level = TRUE, col = 1, textsize = 8, vjust = .5,
+              step_increase = .2)
+```
+Now, the end reason analysis.
+```{r, message=FALSE, warning=FALSE, echo = FALSE, results = FALSE}
+# where are the files
+data_path <- "~/Dropbox/Laura - UC Denver/2022.2021.nanopore.analysis/oligo_summary_data"
+
+# what are their names
+summary_files = list.files(data_path, pattern="*.txt", full.names = F)
+
+read_file <- function(x) {
+  df <- readr::read_delim(x, delim = "\t")
+  df$name <- basename(x)
+  
+  df
+  }
+  
+sum_table <- purrr::map_df(summary_files, read_file) 
+
+sum_table %>%
+  select(-pore_type, -strand_score_template, -experiment_id) %>%
+  select(-run_id, -channel, -filename_fastq, -filename_fast5, -sample_id) %>%
+  separate(name, into = c("genotype"), extra="drop")-> sum_table
+
+sum_table %>%
+  group_by(genotype, end_reason) %>%
+  count()
+```
+Now we would like to recreate the end reason histogram that MinKNOW generates.
+```{r}
+sum_table %>%
+  group_by(genotype) %>%
+  filter(sequence_length_template < 150) %>%
+#  filter(end_reason != "signal_positive") %>%
+  ggplot(., aes(x = (sequence_length_template), fill = end_reason)) +
+  geom_histogram() +
+  theme_cowplot() +
+  scale_y_log10() +
+  facet_grid(~genotype)
+```
+
