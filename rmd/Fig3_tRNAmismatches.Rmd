@@ -1,0 +1,128 @@
+---
+title: "tRNA mismatches"
+output: html_document
+date: "2022-10-25"
+---
+We want to analyze the tRNA sequencing data in a bit more detail. Let's read it in with this function, and add a sample identification column to each dataframe before binding them together.
+```{r}
+knitr::opts_chunk$set(echo = F)
+require(tidyverse)
+library(cowplot)
+library(reshape2)
+
+
+read_nanoRMS <- function(x) {
+  df <- readr::read_csv(x)
+  df %>% 
+    select(-std_q, -ACGT, -mean_q)  -> df
+}
+
+read_nanoRMS("CRY1.bwa.sc3.tRNome.per.site.baseFreq.csv") %>%
+  add_column(sample = "wt") -> wt
+
+read_nanoRMS("w30310x.bwa.sc3.tRNome.per.site.baseFreq.csv") %>%
+  add_column(sample = "bypass") -> bypass
+
+read_nanoRMS("tpt1d.bwa.sc3.tRNome.per.site.baseFreq.csv") %>%
+  add_column(sample = "tpt1") -> tpt1
+
+read_nanoRMS("xrn1d10x_untr_tRNA.bwa.sc3.tRNome.per.site.baseFreq.csv") %>%
+  add_column(sample = "xrn1") -> xrn1
+
+read_nanoRMS("xrn1dtpt1d10x_untr_tRNA.bwa.sc3.tRNome.per.site.baseFreq.csv") %>%
+  add_column(sample = "xrn1tpt1") -> xrn1tpt1
+
+bind_rows(wt, bypass, tpt1, xrn1, xrn1tpt1) -> all
+
+```
+
+Pivot wider & do relevant biological comparisons.
+```{r}
+all %>%
+  select(`#Ref`, pos, strand, mis, sample, cov) %>%
+  dplyr::rename(RNA = `#Ref`) %>%
+  pivot_wider(names_from = sample, values_from = c(mis, cov)) %>%
+  mutate(diff1 = mis_bypass - mis_wt) %>%
+  mutate(diff2 = mis_tpt1 - mis_bypass) %>%
+  mutate(diff3 = mis_xrn1tpt1 - mis_xrn1) %>%
+  group_by(RNA, strand) %>%
+  arrange(., pos) %>%
+  mutate(mincov1 = pmin(cov_bypass, cov_wt)) %>%
+  mutate(mincov2 = pmin(cov_tpt1, cov_bypass)) %>%
+  mutate(mincov3 = pmin(cov_xrn1tpt1, cov_xrn1)) %>%
+  mutate(adjpos = (pos - 18)) %>% # adjust position numbering so we don't start counting at 5´-adapter sequence
+  separate(RNA, c("sac", "cer", "tRNA"), sep = "_") %>%
+  separate(tRNA, c("t", "AA", "anticodon", "family", "number")) %>%
+  select(-sac, -cer, -t, -number, -family) -> mismatchdiff
+```
+
+Calculate minimum coverage requirements: Need to transform select values to NAs before plotting if either mismatch frequency input used for the difference calculation is associated with <20X coverage at that position.
+
+Then we cut the tibble down to remove extraneous information before reshaping & plotting the data.
+```{r}
+mismatchdiff %>%
+  mutate(diff1 = replace(diff1, mincov1 < 20, NA)) %>%
+  mutate(diff2 = replace(diff2, mincov2 < 20, NA)) %>%
+  mutate(diff3 = replace(diff3, mincov3 < 20, NA)) -> mismatchdiff
+  
+# reduce this tibble down to the bare minimum
+mismatchdiff %>%
+  filter(strand == "+") %>%
+  ungroup() %>%
+  select(anticodon, adjpos, diff1, diff2, diff3) %>%
+  filter(adjpos > 0 ) -> small # just drop the 5´-adapter data. harder for 3´ adapter b/c length differences
+
+### QUESTION: these are all positionally correct? Why do we even HAVE coverage on the 5´-adapter terminus?
+```
+
+Plotting code block. If the tRNAs all had the same length I'd write a plotting function, but they don't. There's just enough tweaking by hand of tick marks, etc. for the final figures to leave this code as-is.
+```{r}
+# select a tRNA 
+small %>%
+  filter(anticodon == "GCT") %>%
+  select(-anticodon) -> smol
+
+# reshape::melt this into a long, tidy puddle of data
+# melt does not like being piped into? so we do this separately
+melt(smol, id = c("adjpos")) -> longsmol
+
+# plot stuff. remember to change the title (and the y limits / ticks if needed)!
+## and tRNAs have Us not Ts, so we change the names accordingly
+ggplot(longsmol, aes(x = variable,
+                     y = adjpos,
+                     fill = value)) +
+  geom_tile(color = "black",
+            lwd = .15,
+            linetype = 1)+
+  scale_fill_gradient2(low = "#0072B2",
+                       mid = "#FFFFFF",
+                       high = "#D55E00",
+                       na.value = 'gray') +
+  coord_fixed() +
+  theme(plot.background=element_blank(),
+        panel.grid = element_blank(),
+        panel.border=element_blank(),
+        panel.background = element_blank(),
+        axis.text.x = element_blank(),
+  #      axis.text.x = element_text(angle = 90),
+        axis.ticks.x = element_blank(),
+        legend.position = "left",
+        legend.direction="vertical",
+        legend.margin=margin(grid::unit(0, "cm")),
+        legend.key.height=grid::unit(0.4, "cm"),
+        legend.key.width=grid::unit(0.2, "cm")) +
+  labs(title = "Ser-GCU",
+       x = "",
+       y = "",
+       fill = "∆MM") +
+  scale_y_reverse(
+#    limits = c(84,0),
+    breaks = c(90, 85, 80, 75, 70, 65, 60, 55, 50, 45, 40, 35, 30, 25, 20, 15, 10, 5)
+  )  + 
+  scale_x_discrete(expand=c(0,0))+
+  coord_cartesian(xlim = c(0,4)) +
+  coord_fixed(ratio = 1/2) 
+
+
+```
+
