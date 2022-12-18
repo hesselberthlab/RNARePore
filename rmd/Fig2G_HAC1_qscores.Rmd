@@ -1,0 +1,100 @@
+---
+title: "Quality scores on HAC1"
+output:
+  html_document:
+    df_print: paged
+---
+Load up the pre-processed samtools pileup data from the tunicamycin treated, no exonuclease treatment CRY1 & xrn1∆tpt1∆(10x-tRNA) samples.
+```{r}
+knitr::opts_chunk$set(echo = F)
+require(tidyverse)
+require(purrr)
+library(cowplot)
+library(rstatix)
+library(ggpubr)
+
+mutant <- read_delim("mt.numeric.pileup", delim = "\t", col_types = cols(.default = "c" ), col_names = c("chrom", "pos", "ref", "depth", "align", "base_qual", "align_qual", "numeric_base_qual"))
+control <- read_delim("wt.numeric.pileup", delim = "\t", col_types = cols(.default = "c" ), col_names = c("chrom", "pos", "ref", "depth", "align", "base_qual", "align_qual", "numeric_base_qual"))
+```
+This is an output of samtools view that selected for only reads that aligned to spliced HAC1, so we can drop most of these columns. Then tidy up to one position and one base quality per row.
+```{r}
+mutant %>%
+  select(pos, numeric_base_qual) %>%
+  separate_rows(numeric_base_qual, sep = ",") %>%
+  mutate(Q_score = as.numeric(numeric_base_qual)) %>%
+  mutate(id = "mutant") -> m
+
+control %>%
+  select(pos, numeric_base_qual) %>%
+  separate_rows(numeric_base_qual, sep = ",") %>%
+  mutate(Q_score = as.numeric(numeric_base_qual)) %>%
+  mutate(id = "wild-type") -> c
+
+full_join(m, c) -> all
+```
+What does spliced HAC1 look like?
+```{r}
+all %>%
+  filter(pos > 709 & pos < 746) %>%
+  group_by(id) %>%
+  ggplot(., aes(x = pos, y = Q_score, fill = id)) +
+  geom_boxplot(outlier.shape = NA) +
+  scale_x_discrete(breaks = seq(690, 750, 5), expand = c(0,0)) +
+#  scale_y_continuous(breaks = seq(0, 50, 10), limits = c(0,50), expand = c(0,0)) +
+  scale_fill_manual(values = c("#56B4E9", "#E69F00"), limits = c("wild-type", "mutant")) +
+  theme_minimal_hgrid() +
+  theme(legend.position = c(.05, 1),
+        legend.box.background = element_rect(color = "transparent", fill='white'),
+        legend.key = element_rect(fill = "transparent", color = "transparent")) +
+  geom_vline(xintercept=727, linetype="dashed", color = "black", size=5) +
+  geom_vline(xintercept=20, linetype="dashed", color = "black", size=1, alpha = .5) + # modified position
+  theme(aspect.ratio=1/3.5) +
+  labs(title = "",
+       x = "",
+       y = "Quality Score",
+       fill = "") -> plot
+#ggsave("HAC1_Qscore_ZOOM.png")
+
+all -> df
+df$Q_score <- as.numeric(df$Q_score)
+df$pos <- as.numeric(df$pos)
+df %>% filter(pos > 709 & pos < 746) -> df
+
+# this all works, and we can generate a tibble with p values by position, cool
+df %>%
+  group_by(pos) %>%
+  kruskal_test(Q_score ~ id) %>%
+  adjust_pvalue(method = "bonferroni") %>%
+  add_significance("p.adj") -> KW
+
+# but, rstatix doesn't like the KW format and wants something like the t test output,
+df %>%
+  group_by(pos) %>%
+  t_test(Q_score ~ id) %>%
+  adjust_pvalue(method = "bonferroni") %>%
+  add_significance("p.adj") -> t
+
+# so we're faking it out by replacing columns in the t test df with the KW test's stats
+t$p.adj <- KW$p.adj
+t$p.adj.signif <- KW$p.adj.signif
+
+t %>% add_xy_position(x = "pos", dodge = .5) -> t
+
+
+plot <- ggboxplot(df, x = "pos", y = "Q_score", fill = "id", outlier.shape = NA) +
+  scale_x_discrete(breaks = seq(710, 745, by = 5), expand = c(0, 0)) +
+#  scale_y_log10() +
+  scale_fill_manual(values = c("#56B4E9", "#E69F00"), limits = c("wild-type", "mutant")) +
+  theme_minimal_hgrid() +
+  theme(legend.position = c(.05, .9),
+        legend.box.background = element_rect(color = "transparent", fill='white'),
+        legend.key = element_rect(fill = "transparent", color = "transparent")) +
+  theme(aspect.ratio=1/3) +
+  geom_vline(xintercept=18, linetype="dashed", color = "black", size=1, alpha = .5) + # modified position
+  labs(title = "",
+       x = "Position on spliced HAC1",
+       y = "Qscore",
+       fill = "")
+
+plot + stat_pvalue_manual(t, label = "p.adj.signif", tip.length = .005, hide.ns = TRUE, bracket.nudge.y = -1)
+```
