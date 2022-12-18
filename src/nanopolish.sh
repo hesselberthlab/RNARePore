@@ -8,6 +8,7 @@
 set -o nounset -o pipefail -o errexit -x
 
 # Sample Nanopolish script for generating intermediate files on cluster
+# Here, we're resquiggling a short sequence aligned with BWA (which barfs at Us, had to convert to Ts)
 
 # set conda environment
 #conda activate nanopolish
