@@ -19,7 +19,6 @@ export HDF5_PLUGIN_PATH=/beevol/home/whitel/src/nanopolish/ont-vbz-hdf-plugin-1.
 nanopolish index -d fast5_pass_singles -s out/sequencing_summary.txt allreads.fastq
 
 # combine signal and sequence data
-# is this picky about having the reference locally? can't remember, just going to do it.
 nanopolish eventalign \
     --reads allreads.fastq \
     --bam allreadsT.bwa.sc1splint.bam \
