@@ -6,6 +6,7 @@ date: '2022-03-20'
 ```{r}
 require(tidyverse)
 library(patchwork)
+library(cowplot)
 data_path <- "~/Dropbox/Laura - UC Denver/2022.2021.nanopore.analysis/mRNA_plusminus_Xrn1_bgs/"
 
 # what are their names
@@ -27,12 +28,17 @@ pos_table %>%
 ```
 Raw counts data:
 ```{r}
+scales_y <- list(
+  
+)
+
 all_5p_ends %>%
   filter(exo == "Xrn1" & ref == "YFL031W_mRNA") %>%
   ggplot(., aes(x = pos, y = count, fill = id)) +
   geom_col(width = 5) +
   scale_x_continuous(breaks = seq(0, 1198, by = 150), expand = c(0, .5)) +
-  facet_wrap(id~treatment, scales = "free_y", ncol = 1, strip.position = "right") +
+  facet_wrap(id~treatment, ncol = 1, strip.position = "right") + # formerly scales = "free_y" for preprint
+  coord_cartesian(ylim = c(0,200)) +
   theme_cowplot() +
   scale_fill_manual(values = c(CRY1 = "#56B4E9", xrn1tpt1="#E69F00")) +
   theme(legend.position = "none") +
@@ -49,7 +55,8 @@ all_5p_ends %>%
   ggplot(., aes(x = pos, y = count, fill = id)) +
   geom_col(width = 5) +
   scale_x_continuous(breaks = seq(0, 1198, by = 150), expand = c(0, .5)) +
-  facet_wrap(id~treatment, scales = "free_y", ncol = 1, strip.position = "right") +
+  facet_wrap(id~treatment, ncol = 1, strip.position = "right") +
+  coord_cartesian(ylim = c(0,200)) +
   theme_cowplot() +
   scale_fill_manual(values = c(CRY1 = "#56B4E9", xrn1tpt1="#E69F00")) +
   theme(legend.position = "none") +
@@ -62,7 +69,7 @@ all_5p_ends %>%
   theme(aspect.ratio = 1/4) -> b
 
 plot_grid(b, a)
-
+ggsave("rev1F.png")
 ```
 Need to make 1F (used to be in fig 2, moved around since) with just the +tm data.
 ```{r}
@@ -102,10 +109,10 @@ plot things
 ```{r}
 # to reuse for generating figure plot, make same as full2 below
 xrn1_delta %>%
-  filter(ref == "YGR254W_mRNA") %>%
+  filter(ref == "YFL031W_mRNA") %>%
   ggplot(., aes(x = pos, y = delta, fill = id)) +
-  geom_col(width = 1) +
-  scale_x_continuous(breaks = seq(0, 1551, by = 100), expand = c(0, .5)) +
+  geom_col(width = 5) +
+  scale_x_continuous(breaks = seq(0, 1198, by = 300), expand = c(0, .5)) +
   theme_cowplot() +
   scale_fill_manual(values = c(CRY1 = "#56B4E9", xrn1tpt1="#E69F00")) +
   theme(legend.position = "none") +
@@ -114,7 +121,8 @@ xrn1_delta %>%
        y = "",
        fill = "") +
   theme(strip.text.y = element_blank()) +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1))# + coord_cartesian(xlim=c(900,920), ylim = c(-50, 50))#-> full1
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) -> full1
+
 ```
 
 ```{r}
@@ -136,9 +144,9 @@ xrn1_delta %>%
 
 ```
 
-
 ```{r}
 diffdiff %>%
+  filter(ref == "YFL031W_mRNA") %>%
   ggplot(., aes(x = pos, y = delta)) +
   geom_col(width = 5) +
   scale_x_continuous(breaks = seq(0, 1198, by = 300), expand = c(0, .5)) +
@@ -153,6 +161,7 @@ diffdiff %>%
   theme(axis.text.x = element_text(angle = 45, hjust = 1)) -> full2
 
 diffdiff %>%
+  filter(ref == "YFL031W_mRNA") %>%
   ggplot(., aes(x = pos, y = delta)) +
   geom_col(width = 1) +
   scale_x_continuous(breaks = seq(0, 1198, by = 10), expand = c(0, .5)) +
@@ -168,7 +177,7 @@ diffdiff %>%
   coord_cartesian(xlim = c(700, 750), ylim = c(-10, 170)) -> zoom2
 
 full1 + zoom1 + full2 + zoom2 + 
-  plot_layout(widths = c(10, 3), heights = c(2, 2)) + theme(plot.margin = c(1,1,1,1))
+  plot_layout(widths = c(10, 3), heights = c(2, 2)) #+ theme(plot.margin = c(1,1,1,1))
 
 ggsave("hac1ends.pdf", width = 10, height = 4)
 ```
