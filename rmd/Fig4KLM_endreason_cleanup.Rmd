@@ -18,7 +18,7 @@ Each Nanopore run produces a sequencing_summary.txt file where every row is a re
 
 ```{r, message=FALSE, warning=FALSE, echo = FALSE, results = FALSE}
 # where are the files
-data_path <- "~/Dropbox/Laura - UC Denver/2022.2021.nanopore.analysis/Nanopore_summary_data"
+data_path <- "~/data/Nanopore_summary_data"
 
 # what are their names
 summary_files = list.files(data_path, pattern="*summary.txt", full.names = F)
