@@ -7,7 +7,7 @@ date: '2022-03-20'
 require(tidyverse)
 library(patchwork)
 library(cowplot)
-data_path <- "~/Dropbox/Laura - UC Denver/2022.2021.nanopore.analysis/mRNA_plusminus_Xrn1_bgs/"
+data_path <- "~/data/mRNA_plusminus_Xrn1_bgs/"
 
 # what are their names
 pos_files = list.files(data_path, pattern="*.bg", full.names = F)
