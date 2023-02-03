@@ -17,6 +17,8 @@ read_nanoRMS <- function(x) {
     select(-std_q, -ACGT, -mean_q)  -> df
 }
 
+# files below added to RNARePore/data/basefreq_csvs/
+
 read_nanoRMS("CRY1.bwa.sc3.tRNome.per.site.baseFreq.csv") %>%
   add_column(sample = "wt") -> wt
 
