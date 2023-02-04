@@ -22,7 +22,7 @@ read_file <- function(x) {
   df
 }
 
-pos_table <- purrr::map_df(test, read_file) 
+pos_table <- purrr::map_df(pos_files, read_file) 
 pos_table %>%
   separate(name, into = c("p", "strand", "id", "treatment", "Exo"), sep = "_") %>%
   select(-end, -p, -strand) %>%
