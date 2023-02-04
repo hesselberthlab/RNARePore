@@ -6,32 +6,31 @@ date: "2022-10-25"
 We want to analyze the tRNA sequencing data in a bit more detail. Let's read it in with this function, and add a sample identification column to each dataframe before binding them together.
 ```{r}
 knitr::opts_chunk$set(echo = F)
-require(tidyverse)
+library(tidyverse)
 library(cowplot)
 library(reshape2)
+library(here)
 
-
+# little read in function, would be better if we'd captured sample IDs in these but OK
 read_nanoRMS <- function(x) {
   df <- readr::read_csv(x)
   df %>% 
     select(-std_q, -ACGT, -mean_q)  -> df
 }
 
-# files below added to RNARePore/data/basefreq_csvs/
-
-read_nanoRMS("CRY1.bwa.sc3.tRNome.per.site.baseFreq.csv") %>%
+read_nanoRMS(here("data/basefreq_csvs/CRY1.bwa.sc3.tRNome.per.site.baseFreq.csv")) %>%
   add_column(sample = "wt") -> wt
 
-read_nanoRMS("w30310x.bwa.sc3.tRNome.per.site.baseFreq.csv") %>%
+read_nanoRMS(here("data/basefreq_csvs/w30310x.bwa.sc3.tRNome.per.site.baseFreq.csv")) %>%
   add_column(sample = "bypass") -> bypass
 
-read_nanoRMS("tpt1d.bwa.sc3.tRNome.per.site.baseFreq.csv") %>%
+read_nanoRMS(here("data/basefreq_csvs/tpt1d.bwa.sc3.tRNome.per.site.baseFreq.csv")) %>%
   add_column(sample = "tpt1") -> tpt1
 
-read_nanoRMS("xrn1d10x_untr_tRNA.bwa.sc3.tRNome.per.site.baseFreq.csv") %>%
+read_nanoRMS(here("data/basefreq_csvs/xrn1d10x_untr_tRNA.bwa.sc3.tRNome.per.site.baseFreq.csv")) %>%
   add_column(sample = "xrn1") -> xrn1
 
-read_nanoRMS("xrn1dtpt1d10x_untr_tRNA.bwa.sc3.tRNome.per.site.baseFreq.csv") %>%
+read_nanoRMS(here("data/basefreq_csvs/xrn1dtpt1d10x_untr_tRNA.bwa.sc3.tRNome.per.site.baseFreq.csv")) %>%
   add_column(sample = "xrn1tpt1") -> xrn1tpt1
 
 bind_rows(wt, bypass, tpt1, xrn1, xrn1tpt1) -> all
@@ -74,10 +73,9 @@ mismatchdiff %>%
   select(anticodon, adjpos, diff1, diff2, diff3) %>%
   filter(adjpos > 0 ) -> small # just drop the 5´-adapter data. harder for 3´ adapter b/c length differences
 
-### QUESTION: these are all positionally correct? Why do we even HAVE coverage on the 5´-adapter terminus?
 ```
 
-Plotting code block. If the tRNAs all had the same length I'd write a plotting function, but they don't. There's just enough tweaking by hand of tick marks, etc. for the final figures to leave this code as-is.
+Plotting code block. If the tRNAs all had the same length I'd write a plotting function, but they don't. There's just enough tweaking by hand of tick marks, etc. for the final figures to leave this code as-is. To plot different tRNAs, filter by the appropraite anticodon in the code block below and adjust the plotting window as needed. tRNA lengths (which include 5' and 3' adapters) can be pulled from the alignment reference: /ref/noints-consensus-ONTadapt-sacCer3-tRNAs.fa
 ```{r}
 # select a tRNA 
 small %>%

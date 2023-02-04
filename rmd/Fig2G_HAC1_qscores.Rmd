@@ -7,14 +7,14 @@ output:
 Load up the pre-processed samtools pileup data from the tunicamycin treated, no exonuclease treatment CRY1 & xrn1∆tpt1∆(10x-tRNA) samples.
 ```{r}
 knitr::opts_chunk$set(echo = F)
-require(tidyverse)
-require(purrr)
+library(tidyverse)
 library(cowplot)
 library(rstatix)
 library(ggpubr)
+library(here)
 
-mutant <- read_delim("~/data/pileup_scores/mt.numeric.pileup", delim = "\t", col_types = cols(.default = "c" ), col_names = c("chrom", "pos", "ref", "depth", "align", "base_qual", "align_qual", "numeric_base_qual"))
-control <- read_delim("~/data/pileup_scores/wt.numeric.pileup", delim = "\t", col_types = cols(.default = "c" ), col_names = c("chrom", "pos", "ref", "depth", "align", "base_qual", "align_qual", "numeric_base_qual"))
+mutant <- read_delim(here("data/pileup_scores/mt.numeric.pileup"), delim = "\t", col_types = cols(.default = "c" ), col_names = c("chrom", "pos", "ref", "depth", "align", "base_qual", "align_qual", "numeric_base_qual"))
+control <- read_delim(here("data/pileup_scores/wt.numeric.pileup"), delim = "\t", col_types = cols(.default = "c" ), col_names = c("chrom", "pos", "ref", "depth", "align", "base_qual", "align_qual", "numeric_base_qual"))
 ```
 This is an output of samtools view that selected for only reads that aligned to spliced HAC1, so we can drop most of these columns. Then tidy up to one position and one base quality per row.
 ```{r}
