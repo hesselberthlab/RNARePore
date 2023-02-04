@@ -6,9 +6,10 @@ date: "2022-10-25"
 We want to analyze the tRNA sequencing data in a bit more detail. Let's read it in with this function, and add a sample identification column to each dataframe before binding them together.
 ```{r}
 knitr::opts_chunk$set(echo = F)
-require(tidyverse)
+library(tidyverse)
 library(cowplot)
 library(reshape2)
+library(here)
 
 
 read_nanoRMS <- function(x) {

@@ -6,11 +6,10 @@ date: '2022-05-23'
 ```{r, message=FALSE, warning=FALSE, echo = FALSE, results = FALSE}
 library(cowplot)
 library(tidyverse)
-library(purrr)
-library(ggplot2)
 library(colorblindr)
 library(patchwork)
 library(ggsignif)
+library(here)
 ```
 As I did for the Leger oligo data, I want to look at per-read dwell from PMID: 35252946, comparing IVTed rRNA to native rRNA from budding yeast. Due to Nanopolish eventalign file size from these libraries, the input files have been preprocessed to remove extraneous fields and awk out only a 30 nt window of positions around the 2´-O-methylated sites of interest: 25S nt 2220, and 18S 1428. These were awked out with the awareness that Nanopolish eventalign works in kmer space and not sequence space, and thus the first thing we need to do here is add +3 to each position to get us into sequence space.
 ```{r}

@@ -5,13 +5,10 @@ date: "2022-08-19"
 ---
 ```{r}
 knitr::opts_chunk$set(echo = F)
-require(tidyverse)
-require(purrr)
+library(tidyverse)
 library(cowplot)
 library(colorblindr)
-library(ggplot2)
 library(ggsignif)
-library(forcats)
 library(patchwork)
 
 read_delim("ctrl.bwa.eventalign_output.txt", delim = "\t", col_names = T) %>%

@@ -6,12 +6,10 @@ date: '2022-05-21'
 ```{r, message=FALSE, warning=FALSE, echo = FALSE, results = FALSE}
 library(cowplot)
 library(tidyverse)
-library(purrr)
-library(ggplot2)
 library(colorblindr)
 library(patchwork)
-library(scales)
 library(ggsignif)
+library(here)
 ```
 ## Background
 PMID 34893601 has four synthetic RNA oligos of the same sequence, one unmodified and three modified. Leger & colleagues published some dwell analysis for these, but not at the ~10 nt 5´ offset where we and others have seen increases in dwell time consistent with slowdowns of RNA modifications interacting with the nanopore motor protein.

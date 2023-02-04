@@ -7,11 +7,9 @@ date: '2022-05-21'
 ```{r, message=FALSE, warning=FALSE, echo = FALSE, results = FALSE}
 library(cowplot)
 library(tidyverse)
-library(purrr)
-library(ggplot2)
 library(ggsignif)
-library(forcats)
 library(patchwork)
+library(here)
 ```
 ## Background
 Each Nanopore run produces a sequencing_summary.txt file where every row is a read, and every column contains a different metric, including the read length, the time it took the read to pass through the pore, the mean quality score per read, and the reason that the read ended. Here we interrogate these files. For non-multiplexed libraries where we retained this version of sequencing_summary.txt (which different than the sequencing summary txt produced by rebasecalling), I combined each of the files into a big summary table, split out the file names more tidily, and dropped a few fields I wasn't interested in.
