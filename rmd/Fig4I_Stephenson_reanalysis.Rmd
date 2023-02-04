@@ -6,8 +6,6 @@ date: '2022-05-23'
 ```{r, message=FALSE, warning=FALSE, echo = FALSE, results = FALSE}
 library(cowplot)
 library(tidyverse)
-library(purrr)
-library(ggplot2)
 library(colorblindr)
 library(patchwork)
 library(ggsignif)

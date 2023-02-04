@@ -6,8 +6,7 @@ date: '2022-04-20'
 
 ```{r}
 knitr::opts_chunk$set(echo = F)
-require(tidyverse)
-require(purrr)
+library(tidyverse)
 library(cowplot)
 library(colorblindr)
 

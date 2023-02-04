@@ -6,10 +6,8 @@ date: "2022-08-19"
 ```{r}
 knitr::opts_chunk$set(echo = F)
 require(tidyverse)
-require(purrr)
 library(cowplot)
 library(colorblindr)
-library(ggplot2)
 library(ggsignif)
 library(forcats)
 library(patchwork)

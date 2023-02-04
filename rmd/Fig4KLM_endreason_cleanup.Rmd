@@ -7,21 +7,18 @@ date: '2022-05-21'
 ```{r, message=FALSE, warning=FALSE, echo = FALSE, results = FALSE}
 library(cowplot)
 library(tidyverse)
-library(purrr)
-library(ggplot2)
 library(ggsignif)
 library(forcats)
 library(patchwork)
+library(here)
+library(fs)
 ```
 ## Background
 Each Nanopore run produces a sequencing_summary.txt file where every row is a read, and every column contains a different metric, including the read length, the time it took the read to pass through the pore, the mean quality score per read, and the reason that the read ended. Here we interrogate these files. For non-multiplexed libraries where we retained this version of sequencing_summary.txt (which different than the sequencing summary txt produced by rebasecalling), I combined each of the files into a big summary table, split out the file names more tidily, and dropped a few fields I wasn't interested in.
 
 ```{r, message=FALSE, warning=FALSE, echo = FALSE, results = FALSE}
-# where are the files
-data_path <- "~/data/Nanopore_summary_data"
 
-# what are their names
-summary_files = list.files(data_path, pattern="*summary.txt", full.names = F)
+file_loc = dir_ls(path = here('data/Nanopore_summary_data/'))
 
 read_file <- function(x) {
   df <- readr::read_delim(x, delim = "\t")
@@ -30,7 +27,7 @@ read_file <- function(x) {
   df
   }
   
-sum_table <- purrr::map_df(summary_files, read_file) 
+sum_table <- purrr::map_df(file_loc, read_file)
 
 sum_table %>%
   select(-pore_type, -strand_score_template, -experiment_id) %>%
@@ -48,63 +45,30 @@ Almost 7% of reads in the undigested mutant where we turned on the unfolded prot
 I cut the output of Nanopolish eventalign to give a txt files with two fields: read ID, and the reference the read mapped to. Here I add some more metadata fields, then bind everything together into a tidy table.
 
 ```{r}
-read_delim("CRY1_DMSO_Xrn1.reads.txt", delim = "\t", col_names = c("read_id", "ref")) %>%
-  mutate(genotype = "CRY1") %>%
-  mutate(treatment = "DMSO") %>%
-  mutate(enzyme = "Xrn1") -> CRY1_DMSO_Xrn1
+file_loc = dir_ls(path = here('data/read_lookups/'))
 
-read_delim("CRY1_Tm_Xrn1.reads.txt", delim = "\t", col_names = c("read_id", "ref")) %>%
-  mutate(genotype = "CRY1") %>%
-  mutate(treatment = "Tm") %>%
-  mutate(enzyme = "Xrn1") -> CRY1_Tm_Xrn1
+read_lookup <- function(x) {
+  df <- readr::read_delim(x, delim = "\t", col_names = c("read_id", "ref"))
+  df$name <- basename(x)
+  
+  df
+  }
+  
+purrr::map_df(file_loc, read_lookup) %>%
+  separate(name, into = c("genotype", "treatment", "enzyme"), extra="drop", sep = "_") %>%
+  separate(enzyme, into = c("enzyme"), extra = "drop") -> allreads
 
-read_delim("CRY1_Tm_NoExo.reads.txt", delim = "\t", col_names = c("read_id", "ref")) %>%
-  mutate(genotype = "CRY1") %>%
-  mutate(treatment = "Tm") %>%
-  mutate(enzyme = "NoExo") -> CRY1_Tm_NoExo
-
-read_delim("xrn1tpt1_DMSO_NoExo.reads.txt", delim = "\t", col_names = c("read_id", "ref")) %>%
-  mutate(genotype = "Tpt1Xrn110x") %>%
-  mutate(treatment = "DMSO") %>%
-  mutate(enzyme = "NoExo")  -> xrn1tpt1_DMSO_NoExo
-
-read_delim("xrn1tpt1_DMSO_Xrn1.reads.txt", delim = "\t", col_names = c("read_id", "ref")) %>%
-  mutate(genotype = "Tpt1Xrn110x") %>%
-  mutate(treatment = "DMSO") %>%
-  mutate(enzyme = "Xrn1") -> xrn1tpt1_DMSO_Xrn1
-
-read_delim("xrn1tpt1_Tm_Xrn1.reads.txt", delim = "\t", col_names = c("read_id", "ref")) %>%
-  mutate(genotype = "Tpt1Xrn110x") %>%
-  mutate(treatment = "Tm") %>%
-  mutate(enzyme = "Xrn1") -> xrn1tpt1_Tm_Xrn1
-
-read_delim("xrn1tpt1_Tm_NoExo.reads.txt", delim = "\t", col_names = c("read_id", "ref")) %>%
-  mutate(genotype = "Tpt1Xrn110x") %>%
-  mutate(treatment = "Tm") %>%
-  mutate(enzyme = "NoExo")-> xrn1tpt1_Tm_NoExo
-
-l = list(
-  CRY1_DMSO_Xrn1,
-  CRY1_Tm_Xrn1,
-  CRY1_Tm_NoExo,
-  xrn1tpt1_DMSO_NoExo,
-  xrn1tpt1_DMSO_Xrn1,
-  xrn1tpt1_Tm_Xrn1,
-  xrn1tpt1_Tm_NoExo
-)
-
-bind_rows(l) -> readrefs
-
-left_join(readrefs, sum_table, by = c("read_id", "genotype", "treatment", "enzyme")) %>%
+left_join(allreads, sum_table, by = c("read_id", "genotype", "treatment", "enzyme")) %>%
   select(read_id, genotype, treatment, enzyme, ref, duration, sequence_length_template, mean_qscore_template, end_reason) %>%
   mutate(genotype = replace(genotype, genotype != "CRY1", "mutant")) %>%
   mutate(genotype = replace(genotype, genotype != "mutant", "wild-type")) %>%
   distinct() -> test
+
+# ISSUE: subsetting seq summaries for size is breaking things, see https://github.com/hesselberthlab/RNARePore/issues/4
 ```
 
 Use this joined table of end reasons x read ID x mRNA aligned to in order to calculate the proportion of unblocked reads across mRNAs with 10+ coverage.
 ```{r}
-
 #I need the coverage per mRNA. This feels awkward, but creating two different summarized tables & joining them.
 test %>%
   group_by(genotype, treatment, enzyme, ref) %>%
