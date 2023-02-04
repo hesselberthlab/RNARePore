@@ -1,4 +1,4 @@
-# RNARePore
+# Nanopore sequencing of internal 2′-PO4 modifications installed by RNA repair
 
 [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.7604091.svg)](https://doi.org/10.5281/zenodo.7604091)
 
