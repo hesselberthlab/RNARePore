@@ -1,0 +1,24 @@
+---
+title: "Get Zenodo Files"
+author: "Laura White"
+date: "2023-02-04"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(here)
+library(inborutils)
+
+here::i_am("FileDownloader.Rmd")
+```
+
+## Run this first
+
+As described in the ReadMe, several large files referenced in these scripts have been hosted on Zenodo. If you have cloned this repository and wish to replicate the figures, you'll want to run the code below to download all of these files into a subdirectory of ~/data, enabling you to run all the code appropriately.
+
+```{r}
+dir.create(here("data/download_zenodo/"), recursive = T)
+download_zenodo(path = here("data/download_zenodo/"), doi = "10.5281/zenodo.7606204", parallel = TRUE)
+```
+
