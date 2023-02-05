@@ -9,6 +9,7 @@ output: html_document
 knitr::opts_chunk$set(echo = TRUE)
 library(here)
 library(inborutils)
+library(fs)
 
 here::i_am("FileDownloader.Rmd")
 ```
@@ -20,5 +21,42 @@ As described in the ReadMe, several large files referenced in these scripts have
 ```{r}
 dir.create(here("data/download_zenodo/"), recursive = T)
 download_zenodo(path = here("data/download_zenodo/"), doi = "10.5281/zenodo.7606204", parallel = TRUE)
+```
+
+The code below will organize these downloaded files into subdirectories for easier calling by other Rmarkdown analysis scripts.
+```{r}
+dir.create(here("data/download_zenodo/mRNA_seq_summaries"))
+file_move(here("data/download_zenodo/CRY1_Tm_NoExo_summary.txt"), here("data/download_zenodo/mRNA_seq_summaries"))
+file_move(here("data/download_zenodo/Tpt1Xrn110x_Tm_NoExo_summary.txt"), here("data/download_zenodo/mRNA_seq_summaries"))
+
+dir.create(here("data/download_zenodo/oligo_seq_summaries"))
+file_move(here("data/download_zenodo/unmodified_sequencing_summary_FAQ63629_959a66c9.txt"), here("data/download_zenodo/oligo_seq_summaries"))
+file_move(here("data/download_zenodo/modified_sequencing_summary_FAS38233_8d9e2747.txt"), here("data/download_zenodo/oligo_seq_summaries"))
+file_move(here("data/download_zenodo/mixed_sequencing_summary_FAS43478_eea620d8.txt"), here("data/download_zenodo/oligo_seq_summaries"))
+
+dir.create(here("data/download_zenodo/oligos_eventalign"))
+file_move(here("data/download_zenodo/2P.eventalign_output.txt"), here("data/download_zenodo/oligos_eventalign"))
+file_move(here("data/download_zenodo/5050.eventalign_output.txt"), here("data/download_zenodo/oligos_eventalign"))
+file_move(here("data/download_zenodo/ctrl.eventalign_output.txt"), here("data/download_zenodo/oligos_eventalign"))
+
+dir.create(here("data/download_zenodo/mRNA_eventalign"))
+file_move(here("data/download_zenodo/YFL031W_mRNA.CRY1_Tm_NoExo.eventalign_output.txt"), here("data/download_zenodo/mRNA_eventalign"))
+file_move(here("data/download_zenodo/YFL031W_mRNA.xrn1tpt1_Tm_NoExo.eventalign_output.txt"), here("data/download_zenodo/mRNA_eventalign"))
+
+# 25S 1428 must be an erroneous earlier file generation step, yes?
+dir.create(here("data/download_zenodo/Stephenson_eventalign"))
+file_move(here("data/download_zenodo/18S.1428.ivt.eventalign.subset.txt"), here("data/download_zenodo/Stephenson_eventalign"))
+file_move(here("data/download_zenodo/18S.1428.native.eventalign.subset.txt"), here("data/download_zenodo/Stephenson_eventalign"))
+file_move(here("data/download_zenodo/25S.1428.ivt.eventalign.subset.txt"), here("data/download_zenodo/Stephenson_eventalign"))
+file_move(here("data/download_zenodo/25S.1428.native.eventalign.subset.txt"), here("data/download_zenodo/Stephenson_eventalign"))
+file_move(here("data/download_zenodo/25S.2220.ivt.eventalign.subset.txt"), here("data/download_zenodo/Stephenson_eventalign"))
+file_move(here("data/download_zenodo/25S.2220.native.eventalign.subset.txt"), here("data/download_zenodo/Stephenson_eventalign"))
+
+dir.create(here("data/download_zenodo/Leger_eventalign"))
+file_move(here("data/download_zenodo/Oligo_1_623403.eventalign_output.txt"), here("data/download_zenodo/Leger_eventalign"))
+file_move(here("data/download_zenodo/Oligo_2_623404.eventalign_output.txt"), here("data/download_zenodo/Leger_eventalign"))
+file_move(here("data/download_zenodo/Oligo_3_623405.eventalign_output.txt"), here("data/download_zenodo/Leger_eventalign"))
+file_move(here("data/download_zenodo/Oligo_control_623402.eventalign_output.txt"), here("data/download_zenodo/Leger_eventalign"))
+
 ```
 
