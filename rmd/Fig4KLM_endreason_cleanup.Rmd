@@ -18,7 +18,7 @@ Each Nanopore run produces a sequencing_summary.txt file where every row is a re
 
 ```{r, message=FALSE, warning=FALSE, echo = FALSE, results = FALSE}
 
-file_loc = dir_ls(path = here('data/Nanopore_summary_data/'))
+file_loc = dir_ls(path = here('data/download_zenodo/mRNA_seq_summaries/'))
 
 read_file <- function(x) {
   df <- readr::read_delim(x, delim = "\t")
@@ -32,7 +32,9 @@ sum_table <- purrr::map_df(file_loc, read_file)
 sum_table %>%
   select(-pore_type, -strand_score_template, -experiment_id) %>%
   select(-run_id, -channel, -filename_fastq, -filename_fast5, -sample_id) %>%
-  separate(name, into = c("genotype", "treatment", "enzyme"), extra="drop") -> sum_table
+  separate(name, into = c("genotype", "treatment", "enzyme"), extra="drop") %>%
+  mutate(genotype = replace(genotype, genotype != "CRY1", "mutant")) %>%
+  mutate(genotype = replace(genotype, genotype != "mutant", "wild-type")) -> sum_table
 ```
 Let's look at how many reads were ejected due to suspected pore clogging on a per-library basis.
 ```{r, message=FALSE, warning=FALSE}
@@ -56,15 +58,15 @@ read_lookup <- function(x) {
   
 purrr::map_df(file_loc, read_lookup) %>%
   separate(name, into = c("genotype", "treatment", "enzyme"), extra="drop", sep = "_") %>%
-  separate(enzyme, into = c("enzyme"), extra = "drop") -> allreads
+  separate(enzyme, into = c("enzyme"), extra = "drop") %>%
+  mutate(genotype = replace(genotype, genotype != "CRY1", "mutant")) %>%
+  mutate(genotype = replace(genotype, genotype != "mutant", "wild-type"))-> allreads
 
+####### WHY IS ALLREADS SMALLER THAN SUMTABLE OMG KILL ME
+# One issue: don't seem to have mutant correctly
 left_join(allreads, sum_table, by = c("read_id", "genotype", "treatment", "enzyme")) %>%
   select(read_id, genotype, treatment, enzyme, ref, duration, sequence_length_template, mean_qscore_template, end_reason) %>%
-  mutate(genotype = replace(genotype, genotype != "CRY1", "mutant")) %>%
-  mutate(genotype = replace(genotype, genotype != "mutant", "wild-type")) %>%
   distinct() -> test
-
-# ISSUE: subsetting seq summaries for size is breaking things, see https://github.com/hesselberthlab/RNARePore/issues/4
 ```
 
 Use this joined table of end reasons x read ID x mRNA aligned to in order to calculate the proportion of unblocked reads across mRNAs with 10+ coverage.
