@@ -26,6 +26,8 @@ Data required to replicate the figures:
 
 * Smaller intermediate files used to replicate the figures (e.g., bedgraphs) can be found in `/data`
 
-* Summary files produced during MinKNOW runs are quite large; these are now hosted on Zenodo under DOI [10.5281/zenodo.7607935](https://doi.org/10.5281/zenodo.7607935). The end status field we interrogate in these in these summary files is also duplicated within the raw fast5 files.
+* Larger intermediate analysis files are now hosted on Zenodo under DOI [10.5281/zenodo.7607935](https://doi.org/10.5281/zenodo.7607935) and can be downloaded into the project using the script `FileDownloader.Rmd`. These files are described below:
 
-* To analyze current and dwell time on a per read level, raw nanopore sequencing data was analyzed with [Nanopolish](https://github.com/jts/nanopolish) eventalign (see src/nanopolish.sh). This per-read, per-nucleotide information generates large tabular data, which we have trimmed and hosted on Zenodo along with the full sequencing summary files under DOI [10.5281/zenodo.7607935](https://doi.org/10.5281/zenodo.7607935).
+  * Summary files produced during MinKNOW runs are quite large; the end status field we interrogate in these in these summary files is also duplicated within the raw fast5 files.
+
+  * To analyze current and dwell time on a per read level, raw nanopore sequencing data was analyzed with [Nanopolish](https://github.com/jts/nanopolish) eventalign (see src/nanopolish.sh). This per-read, per-nucleotide information generates large tabular data, which we have trimmed to contain only the columns analyzed in this analysis.
