@@ -10,10 +10,16 @@ knitr::opts_chunk$set(echo = F)
 library(tidyverse)
 library(cowplot)
 library(patchwork)
+library(here)
+here::i_am("rmd/Fig4ABCD_nanopolish_outputs.Rmd")
+```
 
-read_tsv("YFL031W_mRNA.CRY1_Tm_NoExo.eventalign_output.txt", col_names = c("contig", "position",	"reference_kmer",	"read_id",	"strand",	"event_index",	"event_level_mean",	"event_stdv",	"event_length",	"model_kmer",	"model_mean",	"model_stdv",	"standardized_level")) %>%
+
+```{r}
+read_tsv(here("data/download_zenodo/mRNA_eventalign/YFL031W_mRNA.CRY1_Tm_NoExo.eventalign_output.txt"), col_names = c("contig", "position",	"reference_kmer",	"read_id",	"strand",	"event_index",	"event_level_mean",	"event_stdv",	"event_length",	"model_kmer",	"model_mean",	"model_stdv",	"standardized_level")) %>%
   add_column(genotype = "wild-type") -> wt
-read_tsv("YFL031W_mRNA.xrn1tpt1_Tm_NoExo.eventalign_output.txt", col_names = c("contig", "position",	"reference_kmer",	"read_id",	"strand",	"event_index",	"event_level_mean",	"event_stdv",	"event_length",	"model_kmer",	"model_mean",	"model_stdv",	"standardized_level")) %>%
+
+read_tsv(here("data/download_zenodo/mRNA_eventalign/YFL031W_mRNA.xrn1tpt1_Tm_NoExo.eventalign_output.txt"), col_names = c("contig", "position",	"reference_kmer",	"read_id",	"strand",	"event_index",	"event_level_mean",	"event_stdv",	"event_length",	"model_kmer",	"model_mean",	"model_stdv",	"standardized_level")) %>%
   add_column(genotype = "mutant") -> mt
 
 bind_rows(wt, mt) %>%

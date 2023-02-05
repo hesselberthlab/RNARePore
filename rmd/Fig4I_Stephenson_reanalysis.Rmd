@@ -9,17 +9,20 @@ library(tidyverse)
 library(colorblindr)
 library(patchwork)
 library(ggsignif)
+library(here)
+
+here::i_am("rmd/Fig4I_Stephenson_reanalysis.Rmd")
 ```
 As I did for the Leger oligo data, I want to look at per-read dwell from PMID: 35252946, comparing IVTed rRNA to native rRNA from budding yeast. Due to Nanopolish eventalign file size from these libraries, the input files have been preprocessed to remove extraneous fields and awk out only a 30 nt window of positions around the 2´-O-methylated sites of interest: 25S nt 2220, and 18S 1428. These were awked out with the awareness that Nanopolish eventalign works in kmer space and not sequence space, and thus the first thing we need to do here is add +3 to each position to get us into sequence space.
 ```{r}
-read_delim("25S.2220.ivt.eventalign.subset.txt", delim = "\t",
+read_delim(here("data/download_zenodo/Stephenson_eventalign/25S.2220.ivt.eventalign.subset.txt"), delim = "\t",
            col_names = c("contig", "position",	"reference_kmer",	"read_id",	"event_index",	"event_level_mean",	"event_length"))  %>%
   mutate(position = position +3) %>%
   group_by(contig, position, read_id) %>%
   summarise(dwell = sum(event_length, na.rm = TRUE)*1000) %>%
   mutate(library = "ctrl") -> ctrl_25S
 
-read_delim("25S.2220.native.eventalign.subset.txt", delim = "\t",
+read_delim(here("data/download_zenodo/Stephenson_eventalign/25S.2220.native.eventalign.subset.txt"), delim = "\t",
            col_names = c("contig", "position",	"reference_kmer",	"read_id",	"event_index",	"event_level_mean",	"event_length"))  %>%
   mutate(position = position +3) %>%
   group_by(contig, position, read_id) %>%
@@ -30,14 +33,14 @@ bind_rows(ctrl_25S, mod_25S) %>%
   ungroup() %>%
   select(-contig) -> sc25S
 
-read_delim("18S.1428.ivt.eventalign.subset.txt", delim = "\t",
+read_delim(here("data/download_zenodo/Stephenson_eventalign/18S.1428.ivt.eventalign.subset.txt"), delim = "\t",
            col_names = c("contig", "position",	"reference_kmer",	"read_id",	"event_index",	"event_level_mean",	"event_length"))  %>%
   mutate(position = position +3) %>%
   group_by(contig, position, read_id) %>%
   summarise(dwell = sum(event_length, na.rm = TRUE)*1000) %>%
   mutate(library = "ctrl") -> ctrl_18S
 
-read_delim("18S.1428.native.eventalign.subset.txt", delim = "\t",
+read_delim(here("data/download_zenodo/Stephenson_eventalign/18S.1428.native.eventalign.subset.txt"), delim = "\t",
            col_names = c("contig", "position",	"reference_kmer",	"read_id",	"event_index",	"event_level_mean",	"event_length"))  %>%
   mutate(position = position +3) %>%
   group_by(contig, position, read_id) %>%

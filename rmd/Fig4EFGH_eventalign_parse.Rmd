@@ -9,11 +9,17 @@ knitr::opts_chunk$set(echo = F)
 library(tidyverse)
 library(cowplot)
 library(colorblindr)
+library(here)
+here::i_am("rmd/Fig4EFGH_eventalign_parse.Rmd")
+```
 
-read_delim("ctrl.eventalign_output.txt", delim = "\t", col_names = T) %>%
+
+```{r}
+read_delim(here("data/download_zenodo/oligos_eventalign/ctrl.eventalign_output.txt"), delim = "\t", col_names = T) %>%
   mutate(id = "unmodified") %>%
   select(-strand, -contig, -model_kmer, -model_mean, -model_stdv, -standardized_level) -> ctrlsplint
-read_delim("2P.eventalign_output.txt", delim = "\t", col_names = T) %>%
+
+read_delim(here("data/download_zenodo/oligos_eventalign/2P.eventalign_output.txt"), delim = "\t", col_names = T) %>%
   mutate(id = "modified")  %>%
   select(-strand, -contig, -model_kmer, -model_mean, -model_stdv, -standardized_level) -> modsplint
 

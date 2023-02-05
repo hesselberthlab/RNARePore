@@ -5,20 +5,29 @@ date: "2022-08-19"
 ---
 ```{r}
 knitr::opts_chunk$set(echo = F)
-require(tidyverse)
+library(tidyverse)
 library(cowplot)
 library(colorblindr)
 library(ggsignif)
 library(forcats)
 library(patchwork)
-
-read_delim("ctrl.bwa.eventalign_output.txt", delim = "\t", col_names = T) %>%
+library(inborutils)
+library(here)
+here::i_am("rmd/SuppFigs_syntheticoligos.Rmd")
+```
+# these called for *.bwa.eventalign* (except 5050), are thse correct?
+# no we need the bwa alignments
+# reversion Zenodo, siiiiigh
+```{r}
+read_delim(here("data/download_zenodo/oligos_eventalign/ctrl.bwa.eventalign_output.txt"), delim = "\t") %>%
   mutate(id = "unmodified") %>%
   select(-strand, -contig, -model_kmer, -model_mean, -model_stdv, -standardized_level) -> ctrlsplint
-read_delim("2P.bwa.eventalign_output.txt", delim = "\t", col_names = T) %>%
+
+read_delim(here("data/download_zenodo/oligos_eventalign/2P.bwa.eventalign_output.txt"), delim = "\t") %>%
   mutate(id = "modified")  %>%
   select(-strand, -contig, -model_kmer, -model_mean, -model_stdv, -standardized_level) -> modsplint
-read_delim("5050.eventalign_output.txt", delim = "\t", col_names = T) %>%
+
+read_delim(here("data/download_zenodo/oligos_eventalign/5050.eventalign_output.txt"), delim = "\t") %>%
   mutate(id = "mixed")  %>%
   select(-strand, -contig, -model_kmer, -model_mean, -model_stdv, -standardized_level) -> mixedsplint
 
@@ -166,10 +175,8 @@ test %>%
               map_signif_level = TRUE, col = 1, textsize = 8, vjust = .5,
               step_increase = .2)
 ```
-Now, the end reason analysis.
+Now, the end reason analysis. To run this, you should have first run the FileDownloader.Rmd script.
 ```{r, message=FALSE, warning=FALSE, echo = FALSE, results = FALSE}
-# where are the files
-data_path <- "~/Dropbox/Laura - UC Denver/2022.2021.nanopore.analysis/oligo_summary_data"
 
 # what are their names
 summary_files = list.files(data_path, pattern="*.txt", full.names = F)

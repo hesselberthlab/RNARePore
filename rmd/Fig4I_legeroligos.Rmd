@@ -10,11 +10,13 @@ library(colorblindr)
 library(patchwork)
 library(scales)
 library(ggsignif)
+library(here)
+here::i_am("rmd/Fig4I_legeroligos.Rmd")
 ```
 ## Background
 PMID 34893601 has four synthetic RNA oligos of the same sequence, one unmodified and three modified. Leger & colleagues published some dwell analysis for these, but not at the ~10 nt 5´ offset where we and others have seen increases in dwell time consistent with slowdowns of RNA modifications interacting with the nanopore motor protein.
 ```{r}
-read_delim("Oligo_control_623402.eventalign_output.txt", delim = "\t", col_names = T) %>%
+read_delim(here("data/download_zenodo/Leger_eventalign/Oligo_control_623402.eventalign_output.txt"), delim = "\t", col_names = T) %>%
   filter(contig == "control") %>%
   mutate(position = position +3) %>%
   select(-strand, -model_kmer, -model_mean, -model_stdv, -standardized_level) %>%
@@ -22,7 +24,7 @@ read_delim("Oligo_control_623402.eventalign_output.txt", delim = "\t", col_names
   summarise(dwell = sum(event_length, na.rm = TRUE)*1000) %>%
   mutate(library = "control") -> control
 
-read_delim("Oligo_1_623403.eventalign_output.txt", delim = "\t", col_names = T) %>%
+read_delim(here("data/download_zenodo/Leger_eventalign/Oligo_1_623403.eventalign_output.txt"), delim = "\t", col_names = T) %>%
   filter(contig == "mod_set_1") %>%
   mutate(position = position +3) %>%
   select(-strand, -model_kmer, -model_mean, -model_stdv, -standardized_level) %>%
@@ -30,7 +32,7 @@ read_delim("Oligo_1_623403.eventalign_output.txt", delim = "\t", col_names = T) 
   summarise(dwell = sum(event_length, na.rm = TRUE)*1000) %>%
   mutate(library = "oligo1") -> oligo1
 
-read_delim("Oligo_2_623404.eventalign_output.txt", delim = "\t", col_names = T) %>%
+read_delim(here("data/download_zenodo/Leger_eventalign/Oligo_2_623404.eventalign_output.txt"), delim = "\t", col_names = T) %>%
   filter(contig == "mod_set_2") %>%
   mutate(position = position +3) %>%
   select(-strand, -model_kmer, -model_mean, -model_stdv, -standardized_level) %>%
@@ -38,7 +40,7 @@ read_delim("Oligo_2_623404.eventalign_output.txt", delim = "\t", col_names = T) 
   summarise(dwell = sum(event_length, na.rm = TRUE)*1000) %>%
   mutate(library = "oligo2") -> oligo2
 
-read_delim("Oligo_3_623405.eventalign_output.txt", delim = "\t", col_names = T) %>%
+read_delim(here("data/download_zenodo/Leger_eventalign/Oligo_3_623405.eventalign_output.txt"), delim = "\t", col_names = T) %>%
   filter(contig == "mod_set_3") %>%
   mutate(position = position +3) %>%
   select(-strand, -model_kmer, -model_mean, -model_stdv, -standardized_level) %>%
@@ -81,7 +83,7 @@ oligodwell %>%
 ```
 If we were to pull a 5nt window at the sites of interest, how would that look on HAC1?
 ```{r}
-read_delim("YFL031W.CRY1_Tm_NoExo.eventalign_output.txt", delim = "\t", col_names = c("contig", "position",	"reference_kmer",	"read_id",	"strand",	"event_index",	"event_level_mean",	"event_stdv",	"event_length",	"model_kmer",	"model_mean",	"model_stdv",	"standardized_level")) %>%
+read_delim(here("data/download_zenodo/mRNA_eventalign/YFL031W_mRNA.CRY1_Tm_NoExo.eventalign_output.txt"), delim = "\t", col_names = c("contig", "position",	"reference_kmer",	"read_id",	"strand",	"event_index",	"event_level_mean",	"event_stdv",	"event_length",	"model_kmer",	"model_mean",	"model_stdv",	"standardized_level")) %>%
   mutate(position = position +3) %>%
   select(-strand, -model_kmer, -model_mean, -model_stdv, -standardized_level) %>%
   group_by(contig, position, read_id) %>%
@@ -90,7 +92,7 @@ read_delim("YFL031W.CRY1_Tm_NoExo.eventalign_output.txt", delim = "\t", col_name
   mutate(treatment = "Tm") %>%
   mutate(enzyme = "NoExo") -> wt_hac1_dwell
 
-read_delim("YFL031W.xrn1tpt1_Tm_NoExo.eventalign_output.txt", delim = "\t", col_names = c("contig", "position",	"reference_kmer",	"read_id",	"strand",	"event_index",	"event_level_mean",	"event_stdv",	"event_length",	"model_kmer",	"model_mean",	"model_stdv",	"standardized_level")) %>%
+read_delim(here("data/download_zenodo/mRNA_eventalign/YFL031W_mRNA.xrn1tpt1_Tm_NoExo.eventalign_output.txt"), delim = "\t", col_names = c("contig", "position",	"reference_kmer",	"read_id",	"strand",	"event_index",	"event_level_mean",	"event_stdv",	"event_length",	"model_kmer",	"model_mean",	"model_stdv",	"standardized_level")) %>%
   mutate(position = position +3) %>%
   select(-strand, -model_kmer, -model_mean, -model_stdv, -standardized_level) %>%
   group_by(contig, position, read_id) %>%
@@ -477,13 +479,13 @@ OMeth0 + OMeth10
 ```
 And now can I do the same for the splint oligos?
 ```{r}
-read_delim("ctrl.bwa.eventalign_output.txt", delim = "\t", col_names = T) %>%
+read_delim(here("data/download_zenodo/oligos_eventalign/ctrl.bwa.eventalign_output.txt"), delim = "\t", col_names = T) %>%
   select(-strand, -model_kmer, -model_mean, -model_stdv, -standardized_level) %>%
   group_by(contig, position, read_index) %>%
   summarise(dwell = sum(event_length, na.rm = TRUE)*1000) %>%
   mutate(library = "control") -> ctrl_splint
 
-read_delim("2P.bwa.eventalign_output.txt", delim = "\t", col_names = T) %>%
+read_delim(here("data/download_zenodo/oligos_eventalign/2P.bwa.eventalign_output.txt"), delim = "\t", col_names = T) %>%
   select(-strand, -model_kmer, -model_mean, -model_stdv, -standardized_level) %>%
   group_by(contig, position, read_index) %>%
   summarise(dwell = sum(event_length, na.rm = TRUE)*1000) %>%
