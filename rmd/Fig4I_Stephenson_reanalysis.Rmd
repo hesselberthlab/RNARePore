@@ -13,7 +13,9 @@ library(here)
 
 here::i_am("rmd/Fig4I_Stephenson_reanalysis.Rmd")
 ```
-As I did for the Leger oligo data, I want to look at per-read dwell from PMID: 35252946, comparing IVTed rRNA to native rRNA from budding yeast. Due to Nanopolish eventalign file size from these libraries, the input files have been preprocessed to remove extraneous fields and awk out only a 30 nt window of positions around the 2´-O-methylated sites of interest: 25S nt 2220, and 18S 1428. These were awked out with the awareness that Nanopolish eventalign works in kmer space and not sequence space, and thus the first thing we need to do here is add +3 to each position to get us into sequence space.
+I want to look at per-read dwell from PMID: 35252946, comparing IVTed rRNA to native rRNA from budding yeast. Due to Nanopolish eventalign file size from these libraries, the input files have been preprocessed to remove extraneous fields and awk out only a 30 nt window of positions around the 2´-O-methylated sites of interest: 25S nt 2220, and 18S 1428. These were awked out with the awareness that Nanopolish eventalign works in kmer space and not sequence space, and thus the first thing we need to do here is add +3 to each position to get us into sequence space.
+
+Note: despite being trimmed to "minimal" sizes, these files contain 5-24 million observations, so the initial read-in of these datasets can take some time.
 ```{r}
 read_delim(here("data/download_zenodo/Stephenson_eventalign/25S.2220.ivt.eventalign.subset.txt"), delim = "\t",
            col_names = c("contig", "position",	"reference_kmer",	"read_id",	"event_index",	"event_level_mean",	"event_length"))  %>%

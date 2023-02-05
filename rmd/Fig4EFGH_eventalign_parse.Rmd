@@ -15,11 +15,11 @@ here::i_am("rmd/Fig4EFGH_eventalign_parse.Rmd")
 
 
 ```{r}
-read_delim(here("data/download_zenodo/oligos_eventalign/ctrl.eventalign_output.txt"), delim = "\t", col_names = T) %>%
+read_delim(here("data/download_zenodo/oligos_eventalign/ctrl.bwa.eventalign_output.txt"), delim = "\t", col_names = T) %>%
   mutate(id = "unmodified") %>%
   select(-strand, -contig, -model_kmer, -model_mean, -model_stdv, -standardized_level) -> ctrlsplint
 
-read_delim(here("data/download_zenodo/oligos_eventalign/2P.eventalign_output.txt"), delim = "\t", col_names = T) %>%
+read_delim(here("data/download_zenodo/oligos_eventalign/2P.bwa.eventalign_output.txt"), delim = "\t", col_names = T) %>%
   mutate(id = "modified")  %>%
   select(-strand, -contig, -model_kmer, -model_mean, -model_stdv, -standardized_level) -> modsplint
 
@@ -143,10 +143,11 @@ ggsave("splint_perread_dwell.png")
 ```
 Now to do the same thing for HAC1.
 ```{r}
-read_delim("HAC1.CRY1_Tm_NoExo.eventalign_output.txt", delim = "\t", col_names = T) %>%
+read_delim(here("data/download_zenodo/mRNA_eventalign/YFL031W_mRNA.CRY1_Tm_NoExo.eventalign_output.txt"), delim = "\t", col_names = c("contig", "position",	"reference_kmer",	"read_id",	"strand",	"event_index",	"event_level_mean",	"event_stdv",	"event_length",	"model_kmer",	"model_mean",	"model_stdv",	"standardized_level")) %>%
   mutate(id = "wild-type") %>%
   select(-strand, -contig, -model_kmer, -model_mean, -model_stdv, -standardized_level) -> hac1_wildtype
-read_delim("HAC1.xrn1tpt1_Tm_NoExo.eventalign_output.txt", delim = "\t", col_names = T) %>%
+
+read_delim(here("data/download_zenodo/mRNA_eventalign/YFL031W_mRNA.xrn1tpt1_Tm_NoExo.eventalign_output.txt"),, delim = "\t", col_names = c("contig", "position",	"reference_kmer",	"read_id",	"strand",	"event_index",	"event_level_mean",	"event_stdv",	"event_length",	"model_kmer",	"model_mean",	"model_stdv",	"standardized_level")) %>%
   mutate(id = "mutant")  %>%
   select(-strand, -contig, -model_kmer, -model_mean, -model_stdv, -standardized_level) -> hac1_mutant
 
@@ -154,7 +155,7 @@ bind_rows(hac1_wildtype, hac1_mutant) %>%
   mutate(position = position + 3) -> hac1_np
 
 hac1_np %>%
-  group_by(position, reference_kmer, read_index, id) %>%
+  group_by(position, reference_kmer, read_id, id) %>%
   summarize(Dwell = sum(event_length)*1000) -> hac1_dwell
 
 hac1_dwell %>%
@@ -181,7 +182,7 @@ ggsave("hac1_perread_dwell.png")
 Here is mean dwell on HAC1, also.
 ```{r}
 hac1_np %>%
-  group_by(position, reference_kmer, read_index, id) %>%
+  group_by(position, reference_kmer, read_id, id) %>%
   summarize(Dwell = sum(event_length)*1000) %>%
   group_by(position, reference_kmer, id) %>%
   summarize(Dwell = mean(Dwell)) -> mean_dwell
@@ -210,8 +211,8 @@ Then replicate the ∆ current intensity plot with a ∆ dwell plot
 # AGAIN NEED TO COMPENSATE FOR NANOPOLISH POSITION EFFECT BY ADDING +3
 hac1_wildtype %>%
   mutate(position = position +3) %>% 
-  select(position, read_index, event_length, id) %>%
-  group_by(position, read_index, id) %>%
+  select(position, read_id, event_length, id) %>%
+  group_by(position, read_id, id) %>%
   summarize(Dwell = sum(event_length)*1000) %>%
   ungroup() %>%
   group_by(position, id) %>%
@@ -219,8 +220,8 @@ hac1_wildtype %>%
 
 hac1_mutant %>%
   mutate(position = position +3) %>% 
-  select(position, read_index, event_length, id) %>%
-  group_by(position, read_index, id) %>%
+  select(position, read_id, event_length, id) %>%
+  group_by(position, read_id, id) %>%
   summarize(Dwell = sum(event_length)*1000) %>%
   ungroup() %>%
   group_by(position, id) %>%

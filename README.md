@@ -1,6 +1,6 @@
 # Nanopore sequencing of internal 2′-PO4 modifications installed by RNA repair
 
-[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.7606204.svg)](https://doi.org/10.5281/zenodo.7606204)
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.7607935.svg)](https://doi.org/10.5281/zenodo.7607935)
 
 Ligation by plant and fungal RNA ligases yields an internal 2′-phosphate group on each RNA ligation product. Here, we define several unique signals produced by 2′-phosphorylated RNAs during nanopore sequencing:
 
@@ -26,6 +26,6 @@ Data required to replicate the figures:
 
 * Smaller intermediate files used to replicate the figures (e.g., bedgraphs) can be found in `/data`
 
-* Summary files produced during MinKNOW runs are quite large; these are now hosted on Zenodo under DOI [10.5281/zenodo.7606204](https://doi.org/10.5281/zenodo.7606204). The end status field we interrogate in these in these summary files is also duplicated within the raw fast5 files.
+* Summary files produced during MinKNOW runs are quite large; these are now hosted on Zenodo under DOI [10.5281/zenodo.7607935](https://doi.org/10.5281/zenodo.7607935). The end status field we interrogate in these in these summary files is also duplicated within the raw fast5 files.
 
-* To analyze current and dwell time on a per read level, raw nanopore sequencing data was analyzed with [Nanopolish](https://github.com/jts/nanopolish) eventalign (see src/nanopolish.sh). This per-read, per-nucleotide information generates large tabular data, which we have trimmed and hosted on Zenodo along with the full sequencing summary files under DOI [10.5281/zenodo.7606204](https://doi.org/10.5281/zenodo.7606204).
+* To analyze current and dwell time on a per read level, raw nanopore sequencing data was analyzed with [Nanopolish](https://github.com/jts/nanopolish) eventalign (see src/nanopolish.sh). This per-read, per-nucleotide information generates large tabular data, which we have trimmed and hosted on Zenodo along with the full sequencing summary files under DOI [10.5281/zenodo.7607935](https://doi.org/10.5281/zenodo.7607935).
