@@ -8,6 +8,8 @@ output: html_document
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 library(here)
+# devtools::install_github("inbo/inborutils")
+# provides `download_zenodo()`
 library(inborutils)
 library(fs)
 
@@ -18,13 +20,12 @@ here::i_am("FileDownloader.Rmd")
 
 As described in the README, several large files referenced in these scripts have been hosted on Zenodo. If you have cloned this repository and wish to replicate the figures, you'll want to run the code below to download all of these files into a subdirectory of ~/data, enabling you to run all the code appropriately.
 
+The code below will organize these downloaded files into subdirectories for easier calling by other Rmarkdown analysis scripts.
+
 ```{r}
 dir.create(here("data/download_zenodo/"), recursive = T)
 download_zenodo(path = here("data/download_zenodo/"), doi = "10.5281/zenodo.7607935", parallel = TRUE)
-```
 
-The code below will organize these downloaded files into subdirectories for easier calling by other Rmarkdown analysis scripts.
-```{r}
 dir.create(here("data/download_zenodo/mRNA_seq_summaries"))
 file_move(here("data/download_zenodo/CRY1_Tm_NoExo_summary.txt"), here("data/download_zenodo/mRNA_seq_summaries"))
 file_move(here("data/download_zenodo/Tpt1Xrn110x_Tm_NoExo_summary.txt"), here("data/download_zenodo/mRNA_seq_summaries"))
