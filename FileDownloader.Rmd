@@ -8,6 +8,8 @@ output: html_document
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 library(here)
+# devtools::install_github("inbo/inborutils")
+# provides `download_zenodo()`
 library(inborutils)
 library(fs)
 
